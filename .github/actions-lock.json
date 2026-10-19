@@ -1,0 +1,23 @@
+{
+  "retrieved_utc": "2026-10-18T14:01:46.330854+00:00",
+  "actions": [
+    {
+      "repository": "actions/checkout",
+      "tag": "v7.0.1",
+      "sha": "3d3c42e5aac5ba805825da76410c181273ba90b1",
+      "source": "https://github.com/actions/checkout/releases/tag/v7.0.1"
+    },
+    {
+      "repository": "actions/setup-go",
+      "tag": "v7.0.0",
+      "sha": "b7ad1dad31e06c5925ef5d2fc7ad053ef454303e",
+      "source": "https://github.com/actions/setup-go/releases/tag/v7.0.0"
+    },
+    {
+      "repository": "actions/setup-python",
+      "tag": "v7.0.0",
+      "sha": "5fda3b95a4ea91299a34e894583c3862153e4b97",
+      "source": "https://github.com/actions/setup-python/releases/tag/v7.0.0"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "id": "review-change",
+  "steps": [
+    {
+      "id": "inspect",
+      "prompt": "Inspect the requested change and identify the relevant evidence.",
+      "selection": {"model": "auto", "effort": "auto", "permission": "read-only"}
+    },
+    {
+      "id": "review",
+      "prompt": "Review the change against the identified requirements and evidence.",
+      "depends_on": ["inspect"],
+      "selection": {"model": "auto", "effort": "high", "permission": "read-only"}
+    },
+    {
+      "id": "summarize",
+      "prompt": "Summarize confirmed findings, unresolved issues and the next action.",
+      "depends_on": ["review"]
+    }
+  ]
+}

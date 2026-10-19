@@ -1,0 +1,9 @@
+{
+  "asset": "ucli-cat.png",
+  "purpose": "UCLI cat logo for README and project identity",
+  "generator": "built-in image_gen",
+  "transparent_background": true,
+  "dimensions": [1254, 1254],
+  "sha256": "051fdfcdf5a06cd7bbf60fbfa848f62dfac00c09c0cf6df1729299cd687abd5a",
+  "prompt": "Create a single polished logo icon for UCLI, a comfortable universal command-line app for AI agents. A clever friendly cat is the entire mark: compact geometric cat head, crisp pointed ears, a subtly U-shaped face/jaw, alert but relaxed eyes, a small terminal prompt chevron incorporated naturally as one eye or a whisker, without looking like pasted symbols. Distinctive, memorable, approachable developer-tool identity, simple strong silhouette readable at 24px. Flat vector-like graphic, solid warm coral-red main shape and a minimal pale cream facial cutout, small golden-yellow detail only if essential; sufficient dark edge contrast to work on both white and near-black backgrounds. No letters, no wordmark, no text, no badge container, no gradients, no shadows, no 3D, no background. Centered large icon with modest transparent padding. Deliver one finished logo, genuinely transparent background."
+}

@@ -1,0 +1,155 @@
+{
+  "revision": "spike-v0-2026-10-18",
+  "status": "provisional-for-experiments",
+  "frozen_public_api": false,
+  "source_commit": "1afec06",
+  "synthetic_only": true,
+  "request_example": {
+    "request_id": "req_fixture_1",
+    "task_id": "task_fixture_1",
+    "task_revision": 1,
+    "attempt_id": "attempt_fixture_1",
+    "workspace_id": "workspace_fixture_1",
+    "execution_directory": "<fixture-root>/src",
+    "executor_host": "foreground",
+    "runtime": "fixture-agent",
+    "connection": {
+      "id": "connection_fixture_1",
+      "auth_mode": "none"
+    },
+    "requested": {
+      "model": "fixture/model",
+      "effort": "low",
+      "permission": "read-only"
+    },
+    "effective": {
+      "model": "fixture/model",
+      "effort": "low",
+      "permission": "read-only"
+    },
+    "policy": {
+      "eligible_connections": [
+        "connection_fixture_1"
+      ],
+      "network": "denied",
+      "external_mutations": "denied",
+      "max_attempts": 1
+    },
+    "input": "Report the fixture marker without editing files."
+  },
+  "events_example": [
+    {
+      "sequence": 1,
+      "type": "accepted",
+      "durable": true
+    },
+    {
+      "sequence": 2,
+      "type": "message_delta",
+      "text": "fixture marker"
+    },
+    {
+      "sequence": 3,
+      "type": "terminal_result",
+      "provider_status": "complete",
+      "task_acceptance": "pending"
+    },
+    {
+      "sequence": 4,
+      "type": "result_persisted",
+      "task_acceptance": "passed"
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "S01",
+      "name": "follow-up-after-result",
+      "owners": [
+        "P05",
+        "P07",
+        "P14"
+      ],
+      "expect": "Same task, new revision and attempt; previous evidence preserved; global defaults do not replace accepted settings."
+    },
+    {
+      "id": "S02",
+      "name": "runtime-context-handoff",
+      "owners": [
+        "P02",
+        "P03",
+        "P22"
+      ],
+      "expect": "Explicit bounded context and required tools; no private native-state portability or duplicated instructions."
+    },
+    {
+      "id": "S03",
+      "name": "competing-controllers",
+      "owners": [
+        "P07",
+        "P08"
+      ],
+      "expect": "Workspace/session conflicts serialize; command replay returns one receipt; competing approval responses have one outcome."
+    },
+    {
+      "id": "S04",
+      "name": "workspace-identity",
+      "owners": [
+        "P01",
+        "P07"
+      ],
+      "expect": "Subdirectory/alias shares concrete workspace; worktree is separate; execution cwd is preserved."
+    },
+    {
+      "id": "S05",
+      "name": "untrusted-native-config",
+      "owners": [
+        "P02",
+        "P03"
+      ],
+      "expect": "Sentinel hook, endpoint and credential helper do not execute or redirect before authorization."
+    },
+    {
+      "id": "S06",
+      "name": "permission-operational-state",
+      "owners": [
+        "P02",
+        "P03"
+      ],
+      "expect": "Task effects obey filesystem envelope; declared isolated operational writes grant no task authority."
+    },
+    {
+      "id": "S07",
+      "name": "owner-lifetime-and-migration",
+      "owners": [
+        "P01",
+        "P08",
+        "P20"
+      ],
+      "expect": "No live process adoption; detach requires managed ownership; incompatible old writers block migration."
+    },
+    {
+      "id": "S08",
+      "name": "route-evidence-invalidation",
+      "owners": [
+        "P04",
+        "P16"
+      ],
+      "expect": "Changed account/auth/endpoint invalidates scoped evidence; missing quota is neither zero nor unlimited."
+    }
+  ],
+  "gate_questions": {
+    "P01": "Can packaged Go satisfy process/stream/SQLite/terminal behavior and measured overhead on available hosts?",
+    "P02": "Which installed Codex methods enforce the common contract including trust boundaries?",
+    "P03": "Which second installed runtime supports a useful bounded managed tier?",
+    "P04": "Which credential/keychain/daemon/refresh and quota pools can actually be isolated?",
+    "P05": "Can an owner start, follow up and recover without memorizing native syntax?"
+  },
+  "deferrals": [
+    "Public plugin wire freeze",
+    "Universal tool/skill runtime",
+    "Live process adoption",
+    "Hot database migration",
+    "Cloud credential transfer"
+  ],
+  "acceptance_boundary": "Examples are test inputs/expected semantics, not execution evidence. G0 must reconcile real results before production foundations."
+}

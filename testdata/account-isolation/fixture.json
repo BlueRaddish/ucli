@@ -1,0 +1,18 @@
+{
+  "fixture_only": true,
+  "owners": [
+    {"handle": "owner-fixture-a", "subject": "synthetic-alpha"},
+    {"handle": "owner-fixture-b", "subject": "synthetic-beta"}
+  ],
+  "connections": [
+    {"id": "connection-a", "owner": "owner-fixture-a", "subject": "synthetic-alpha", "pool": "shared-known"},
+    {"id": "connection-b", "owner": "owner-fixture-b", "subject": "synthetic-beta", "pool": "shared-known"},
+    {"id": "unknown-a", "owner": "owner-fixture-a", "subject": "synthetic-alpha", "pool": "shared-unknown"},
+    {"id": "unknown-b", "owner": "owner-fixture-b", "subject": "synthetic-beta", "pool": "shared-unknown"}
+  ],
+  "pools": [
+    {"id": "shared-known", "remaining": 10, "units": "synthetic-work-units"},
+    {"id": "shared-unknown", "remaining": null, "units": "unknown"}
+  ],
+  "shared_backend_owner": "owner-fixture-b"
+}

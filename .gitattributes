@@ -1,0 +1,4 @@
+# Evidence is execution data. Preserve exact bytes, including CRLF and prompts.
+/evidence/2026-10-18-application/** -text whitespace=cr-at-eol
+/evidence/2026-10-18-native-signin/** -text whitespace=cr-at-eol
+*.raw.txt -diff

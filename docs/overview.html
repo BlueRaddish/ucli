@@ -1,0 +1,1566 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src &#x27;none&#x27;; script-src &#x27;unsafe-inline&#x27;; style-src &#x27;unsafe-inline&#x27; https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src data:; connect-src &#x27;none&#x27;; object-src &#x27;none&#x27;; frame-src &#x27;none&#x27;; base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;"><title>UCLI Development Overview</title>
+<style>
+:root{
+  --ground:#EDF0F3; --surface:#FFFFFF; --surface-2:#F5F7F9;
+  --ink:#16202B; --ink-soft:#33424F; --muted:#5C6B79;
+  --rule:#CDD6DE; --rule-soft:#E2E8ED;
+  --copper:#A2572C;
+  --moss:#4F6B3E;  --moss-bg:#E4EDDF;
+  --ochre:#87661A; --ochre-bg:#F3EAD3;
+  --brick:#8E3B36; --brick-bg:#F3E0DE;
+  --sans:-apple-system,"Segoe UI",system-ui,sans-serif;
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,"Book Antiqua",Georgia,serif;
+  --mono:ui-monospace,"Cascadia Code",Consolas,monospace;
+  --shadow:0 1px 2px rgba(22,32,43,.06),0 8px 24px -12px rgba(22,32,43,.18);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --ground:#111920; --surface:#19232C; --surface-2:#1F2A34;
+    --ink:#DCE4EA; --ink-soft:#BAC7D1; --muted:#8797A4;
+    --rule:#2E3C48; --rule-soft:#26333D;
+    --copper:#D68F5F;
+    --moss:#93B87C;  --moss-bg:#22301C;
+    --ochre:#C9A44E; --ochre-bg:#332B14;
+    --brick:#D3837B; --brick-bg:#33201E;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px -12px rgba(0,0,0,.6);
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#111920; --surface:#19232C; --surface-2:#1F2A34;
+  --ink:#DCE4EA; --ink-soft:#BAC7D1; --muted:#8797A4;
+  --rule:#2E3C48; --rule-soft:#26333D;
+  --copper:#D68F5F;
+  --moss:#93B87C;  --moss-bg:#22301C;
+  --ochre:#C9A44E; --ochre-bg:#332B14;
+  --brick:#D3837B; --brick-bg:#33201E;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px -12px rgba(0,0,0,.6);
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--ground);color:var(--ink);
+  font-family:var(--serif);font-size:17px;line-height:1.62}
+.wrap{max-width:1080px;margin:0 auto;padding:0 24px 96px}
+.col{max-width:660px}
+header{padding:72px 0 40px;border-bottom:1px solid var(--rule)}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--copper);margin:0 0 18px;font-weight:600}
+h1{font-family:var(--sans);font-weight:800;letter-spacing:-.03em;line-height:1.02;
+  font-size:clamp(38px,6.4vw,66px);margin:0 0 22px;text-wrap:balance}
+.standfirst{font-size:20px;line-height:1.5;color:var(--ink-soft);margin:0;max-width:640px}
+.standfirst strong{color:var(--ink);font-weight:600}
+section{padding-top:56px}
+h2{font-family:var(--sans);font-weight:750;letter-spacing:-.02em;font-size:29px;
+  line-height:1.15;margin:0 0 6px;text-wrap:balance}
+h3{font-family:var(--sans);font-weight:700;letter-spacing:-.01em;font-size:19px;margin:30px 0 8px}
+.sec-label{font-family:var(--mono);font-size:11px;letter-spacing:.15em;text-transform:uppercase;
+  color:var(--muted);margin:0 0 14px;padding-bottom:10px;border-bottom:1px solid var(--rule-soft)}
+p{margin:0 0 16px}
+.col p:last-child{margin-bottom:0}
+strong{font-weight:600}
+a{color:var(--copper)}
+ul,ol{margin:0 0 16px;padding-left:22px}
+li{margin:0 0 7px}
+code,.mono{font-family:var(--mono);font-size:.855em}
+code{background:var(--surface-2);border:1px solid var(--rule-soft);border-radius:3px;padding:.08em .34em}
+pre{background:var(--surface);border:1px solid var(--rule);border-radius:6px;padding:16px 18px;
+  overflow-x:auto;margin:22px 0 0;font-size:13.5px;line-height:1.5}
+pre code{background:none;border:none;padding:0;font-size:inherit}
+figure{margin:34px 0 0;background:var(--surface);border:1px solid var(--rule);
+  border-radius:6px;padding:26px 22px 18px;box-shadow:var(--shadow)}
+.figscroll{overflow-x:auto}
+figure svg{display:block;width:100%;min-width:680px;height:auto;color:var(--ink)}
+figcaption{font-family:var(--sans);font-size:13.5px;line-height:1.5;color:var(--muted);
+  margin-top:18px;padding-top:14px;border-top:1px solid var(--rule-soft)}
+.tablewrap{overflow-x:auto;margin:26px 0 0;border:1px solid var(--rule);border-radius:6px;
+  background:var(--surface);box-shadow:var(--shadow)}
+table{border-collapse:collapse;width:100%;min-width:620px;font-size:14.5px}
+th,td{text-align:left;padding:12px 16px;border-bottom:1px solid var(--rule-soft);vertical-align:top}
+thead th{font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--muted);font-weight:600;background:var(--surface-2);border-bottom:1px solid var(--rule)}
+tbody tr:last-child td{border-bottom:none}
+td.name{font-family:var(--sans);font-weight:650;white-space:nowrap}
+.callout{margin:30px 0 0;background:var(--surface);border:1px solid var(--rule);
+  border-left:3px solid var(--copper);border-radius:0 6px 6px 0;padding:20px 22px}
+.callout p{margin:0 0 10px;font-size:16px}
+.callout p:last-child{margin:0}
+.callout .k{font-family:var(--mono);font-size:10.5px;letter-spacing:.13em;text-transform:uppercase;
+  color:var(--copper);font-weight:600;display:block;margin-bottom:8px}
+.chip{display:inline-block;font-family:var(--sans);font-size:11.5px;font-weight:650;
+  padding:3px 10px;border-radius:10px;white-space:nowrap}
+.c-good{background:var(--moss-bg);color:var(--moss)}
+.c-warn{background:var(--ochre-bg);color:var(--ochre)}
+.c-stop{background:var(--brick-bg);color:var(--brick)}
+footer{margin-top:64px;padding-top:22px;border-top:1px solid var(--rule);
+  font-family:var(--sans);font-size:13px;color:var(--muted)}
+@media (max-width:640px){body{font-size:16px}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* Keep warning labels legible on their paired surface. */
+:root {
+  --ochre: #735200;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ochre: #c9a44e;
+  }
+}
+:root[data-theme="dark"] {
+  --ochre: #c9a44e;
+}
+
+/* page-specific */
+/* Page-specific layout and component styles using template semantic tokens */
+#top-controls {
+  padding-top: 24px;
+}
+
+.utility-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 16px;
+  padding: 12px 14px;
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+}
+
+.sec-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  align-items: center;
+}
+
+.sec-nav a {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+  text-decoration: none;
+  padding: 4px 6px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+}
+
+.sec-nav a:hover,
+.sec-nav a:focus-visible {
+  color: var(--copper);
+  background: var(--copper-bg);
+  border-color: var(--copper);
+  outline: none;
+}
+
+.theme-controls {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.theme-label {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  margin-right: 2px;
+}
+
+.theme-btn,
+.phase-btn,
+.util-btn,
+.pkg-toggle {
+  font-family: var(--sans);
+  font-size: 0.8rem;
+  line-height: 1.2;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--rule);
+  background: var(--surface-2);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.theme-btn:hover,
+.phase-btn:hover,
+.util-btn:hover,
+.pkg-toggle:hover {
+  border-color: var(--copper);
+  color: var(--copper);
+}
+
+.theme-btn[aria-pressed="true"],
+.phase-btn[aria-pressed="true"],
+.pkg-toggle[aria-expanded="true"] {
+  background: var(--copper-bg);
+  color: var(--copper);
+  border-color: var(--copper);
+  font-weight: 600;
+}
+
+.theme-btn:focus-visible,
+.phase-btn:focus-visible,
+.util-btn:focus-visible,
+.pkg-toggle:focus-visible,
+#pkg-search:focus-visible {
+  outline: 2px solid var(--copper);
+  outline-offset: 2px;
+}
+
+.compact-list {
+  margin: 12px 0 16px;
+  padding-left: 20px;
+}
+
+.compact-list li {
+  margin-bottom: 8px;
+}
+
+.sub-block {
+  margin-top: 40px;
+}
+
+/* Interactive Work Package Explorer */
+.explorer-frame {
+  margin-top: 20px;
+  padding: 16px;
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+}
+
+.explorer-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--rule-soft);
+}
+
+.search-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.search-field label {
+  font-family: var(--mono);
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+}
+
+#pkg-search {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  font-family: var(--sans);
+  font-size: 0.92rem;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--rule);
+  background: var(--ground);
+  color: var(--ink);
+}
+
+.phase-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.explorer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.pkg-count {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+}
+
+.action-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pkg-empty {
+  margin: 18px 0 6px;
+  padding: 14px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--ink);
+  border: 1px dashed var(--rule);
+  font-family: var(--sans);
+  font-size: 0.9rem;
+}
+
+.pkg-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.pkg-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--rule);
+  background: var(--ground);
+  color: var(--ink);
+  min-width: 0;
+}
+
+.pkg-card[hidden] {
+  display: none;
+}
+
+.pkg-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin-bottom: 8px;
+}
+
+.pkg-id {
+  font-family: var(--mono);
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: var(--copper);
+  background: var(--copper-bg);
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+
+.pkg-title {
+  flex: 1 1 100%;
+  margin: 4px 0 0;
+  font-family: var(--sans);
+  font-size: 0.96rem;
+  line-height: 1.35;
+  color: var(--ink);
+}
+
+.pkg-toggle {
+  margin-left: auto;
+  font-size: 0.75rem;
+  padding: 4px 8px;
+}
+
+.pkg-goal {
+  margin: 0 0 8px;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  color: var(--ink-soft);
+}
+
+.pkg-meta {
+  margin: 0;
+  font-family: var(--sans);
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.pkg-detail {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--rule-soft);
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: var(--ink-soft);
+}
+
+.pkg-detail p {
+  margin: 0 0 6px;
+}
+
+.pkg-detail p:last-child {
+  margin-bottom: 0;
+}
+
+/* Prevent horizontal overflow on small screens (390px) */
+code {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+pre code {
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+@media (max-width: 520px) {
+  .utility-bar,
+  .explorer-frame {
+    padding: 10px 12px;
+  }
+  .pkg-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Print: expose all content and all 35 work packages with explicit dark-on-light contrast regardless of interactive filters or dark theme */
+@media print {
+  :root,
+  html,
+  body,
+  [data-theme="dark"],
+  [data-theme="light"] {
+    --ground: #ffffff !important;
+    --surface: #f8f7f4 !important;
+    --surface-2: #f1efe9 !important;
+    --ink: #161616 !important;
+    --ink-soft: #333333 !important;
+    --muted: #555555 !important;
+    --rule: #bbbbbb !important;
+    --rule-soft: #dddddd !important;
+    --copper: #7a3415 !important;
+    --copper-bg: #f9ebe2 !important;
+    --moss: #1f5732 !important;
+    --moss-bg: #e7f3ea !important;
+    --ochre: #754c08 !important;
+    --ochre-bg: #faf0dc !important;
+    --brick: #822020 !important;
+    --brick-bg: #fae6e6 !important;
+    background: #ffffff !important;
+    color: #161616 !important;
+  }
+  #top-controls,
+  .explorer-toolbar,
+  .pkg-toggle,
+  .pkg-empty {
+    display: none !important;
+  }
+  .explorer-frame {
+    border: none;
+    padding: 0;
+    background: transparent !important;
+    color: #161616 !important;
+  }
+  .pkg-grid {
+    display: block;
+  }
+  .pkg-card,
+  .pkg-card[hidden] {
+    display: block !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+    margin-bottom: 10px;
+    border: 1px solid #999999 !important;
+    background: #ffffff !important;
+    color: #161616 !important;
+  }
+  .pkg-title,
+  .pkg-goal,
+  .pkg-meta,
+  .pkg-detail,
+  .pkg-detail[hidden] {
+    color: #161616 !important;
+  }
+  .pkg-detail,
+  .pkg-detail[hidden] {
+    display: block !important;
+    border-top-color: #cccccc !important;
+  }
+}</style></head><body>
+<div class="wrap">
+  <header>
+    <p class="eyebrow">PLANNING COMPANION · OCTOBER 17, 2026</p>
+    <h1>UCLI Development Overview</h1>
+    <p class="standfirst">A comfort-first universal AI CLI planning overview covering everyday controls, isolated runtime and account boundaries, deterministic routing, durable multi-agent workflows, and all 35 gated work packages.</p>
+  </header>
+<section id="top-controls" aria-label="Section navigation and display preferences">
+  <div class="utility-bar">
+    <nav class="sec-nav" aria-label="Overview sections">
+      <a href="#purpose">1. Purpose</a>
+      <a href="#experience">2. Experience</a>
+      <a href="#architecture">3. Architecture</a>
+      <a href="#routing">4. Accounts &amp; Routing</a>
+      <a href="#workflow">5. Workflow &amp; Recovery</a>
+      <a href="#phases">6. Delivery Phases</a>
+      <a href="#performance">7. Performance</a>
+      <a href="#packages-sources">8. Packages &amp; Sources</a>
+    </nav>
+    <div class="theme-controls" role="group" aria-label="Color theme">
+      <span class="theme-label" id="theme-group-label">Theme</span>
+      <button type="button" class="theme-btn" data-theme-set="auto" aria-pressed="true">System</button>
+      <button type="button" class="theme-btn" data-theme-set="light" aria-pressed="false">Light</button>
+      <button type="button" class="theme-btn" data-theme-set="dark" aria-pressed="false">Dark</button>
+    </div>
+  </div>
+</section>
+
+<section id="purpose">
+  <p class="sec-label">01 · Purpose &amp; Scope</p>
+  <div class="col">
+    <h2>Comfort-first universal AI CLI without command memorization</h2>
+    <p>
+      UCLI is a planned universal command-line interface designed so its owner can open a terminal, describe work in plain language, observe live progress, adjust model, account or effort through visible controls, and resume cleanly after interruptions. As of <strong>October 17, 2026</strong>, the project is in <strong>planning only</strong>: no UCLI runtime, benchmark harness, or human usability study has been executed yet.
+    </p>
+    <p>
+      Development targets a separate local repository at <code>USER_HOME/Downloads/Projects/ucli</code> while keeping the existing <code>cly</code> toolset untouched and usable. Authoritative specifications reside in <code>docs/implementation-plan.md</code>, <code>docs/experience.md</code>, <code>docs/architecture.md</code>, <code>docs/contracts.md</code>, <code>docs/provider-integrations.md</code>, <code>docs/verification.md</code>, and <code>planning/backlog.json</code>.
+    </p>
+    <aside class="callout">
+      <span class="k">PLANNING BOUNDARY</span>
+      Comfort is the release criterion. Every command shown below is a proposed design example—not an installed binary—and every runtime capability or account boundary requires spike verification before adoption. Planning companion. Technical content and static structure reviewed; browser rendering and interaction checks remain pending because no browser surface was available in the authoring session.
+    </aside>
+  </div>
+</section>
+
+<section id="experience">
+  <p class="sec-label">02 · Everyday Experience</p>
+  <div class="col">
+    <h2>One command registry across prompt, CLI flags, and scripts</h2>
+    <p>
+      Whether starting an interactive home session or running a single non-interactive command, UCLI resolves intent through one shared command registry. Interactive prompts, <code>--help</code> output, and shell completions are generated from the same definitions so interactive controls and scripts never drift apart.
+    </p>
+    <pre><code># Proposed illustrative commands (not yet installed)
+ucli                              # Open interactive home with visible controls
+ucli run "Fix the failing tests"  # Start a managed task from plain language
+ucli models                       # Inspect admitted models, runtimes &amp; capabilities
+ucli tasks                        # View active, blocked, or resumable tasks</code></pre>
+    <p>
+      The interactive home (`P11`) is intentionally small: it preserves native terminal scrollback and in-progress user input while keeping the active model, account connection, effort level, and task status visible and switchable via keyboard shortcuts. Early native passthrough (`P10`, `P14`) ensures provider-specific features remain accessible in Phase 1 without waiting for UCLI wrappers, while `P27` later hardens native escape handling and adds an optional read-only `cly` import preview.
+    </p>
+  </div>
+</section>
+
+<section id="architecture">
+  <p class="sec-label">03 · Architecture</p>
+  <div class="col">
+    <h2>Local Go core, typed domain separation, and verified adapters</h2>
+    <p>
+      The recommended core is a local Go binary (`P01`, provisional until packaged cross-platform process and terminal spikes pass), paired with local SQLite state (`P08`), native OS process and credential adapters (`P09`, `P15`), an optional background supervisor for persistent work (`P20`), and versioned runtime adapters.
+    </p>
+    <p>
+      UCLI keeps <strong>model</strong>, <strong>runtime</strong>, <strong>account</strong>, <strong>task</strong>, and <strong>preset</strong> strictly separate in one typed effective-setting resolver (`P07`). <strong>Codex app-server</strong> (`OAI-01`) is the first structured runtime candidate (`P02`, `P12`). <strong>Antigravity (`agy`)</strong> (`AGY-01`) is the conditional second candidate (`P03`, `P13`), pending lifecycle and concurrent account-isolation proof (`P04`), with <strong>Meta Muse Code</strong> (`MUS-01`) or an authorized <strong>Claude API</strong> path (`CLA-01`) as fallbacks. Structured capabilities must be proven against exact executable builds—never inferred from catalog listings. A public adapter extension kit (`P25`) is deferred until two real production adapters are running.
+    </p>
+  </div>
+
+  <figure class="figscroll" aria-label="UCLI layered architecture diagram">
+    <svg viewBox="0 0 920 300" role="img" aria-labelledby="arch-svg-title arch-svg-desc">
+      <title id="arch-svg-title">UCLI provisional architecture layers</title>
+      <desc id="arch-svg-desc">Flow from unified command registry and interactive home through the effective-setting resolver and deterministic router to SQLite state, optional supervisor, OS secret/process adapters, and isolated runtime adapters.</desc>
+      <rect x="10" y="12" width="900" height="64" rx="6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="4 3" opacity="0.45" />
+      <text x="26" y="34" font-family=" monospace" font-size="11" fill="currentColor" opacity="0.8">ENTRYPOINTS · SHARED COMMAND REGISTRY (P10, P11)</text>
+      <rect x="26" y="42" width="260" height="24" rx="4" fill="none" stroke="currentColor" stroke-width="1.2" />
+      <text x="156" y="58" text-anchor="middle" font-size="12" fill="currentColor">Interactive Home &amp; Visible Controls</text>
+      <rect x="310" y="42" width="270" height="24" rx="4" fill="none" stroke="currentColor" stroke-width="1.2" />
+      <text x="445" y="58" text-anchor="middle" font-size="12" fill="currentColor">Direct CLI (`ucli run`, `models`, `tasks`)</text>
+      <rect x="604" y="42" width="290" height="24" rx="4" fill="none" stroke="currentColor" stroke-width="1.2" />
+      <text x="749" y="58" text-anchor="middle" font-size="12" fill="currentColor">Early Native Passthrough (P10/P14; P27 hardens)</text>
+
+      <line x1="460" y1="76" x2="460" y2="100" stroke="currentColor" stroke-width="1.5" />
+
+      <rect x="10" y="100" width="900" height="84" rx="6" fill="none" stroke="currentColor" stroke-width="1.5" />
+      <text x="26" y="122" font-family="monospace" font-size="11" fill="currentColor" opacity="0.8">LOCAL GO CORE · SEPARATE DOMAIN CONCEPTS: MODEL ≠ RUNTIME ≠ ACCOUNT ≠ TASK ≠ PRESET</text>
+      <rect x="26" y="132" width="275" height="38" rx="4" fill="none" stroke="currentColor" stroke-width="1.2" />
+      <text x="163" y="150" text-anchor="middle" font-size="12" font-weight="600" fill="currentColor">Effective-Setting Resolver (P07)</text>
+      <text x="163" y="164" text-anchor="middle" font-size="11" fill="currentColor" opacity="0.8">Typed precedence &amp; policy boundary</text>
+
+      <rect x="318" y="132" width="284" height="38" rx="4" fill="none" stroke="currentColor" stroke-width="1.2" />
+      <text x="460" y="150" text-anchor="middle" font-size="12" font-weight="600" fill="currentColor">Deterministic Router &amp; Quotas (P17, P18)</text>
+      <text x="460" y="164" text-anchor="middle" font-size="11" fill="currentColor" opacity="0.8">Eligibility filter → quality/latency/capacity rank</text>
+
+      <rect x="619" y="132" width="275" height="38" rx="4" fill="none" stroke="currentColor" stroke-width="1.2" />
+      <text x="756" y="150" text-anchor="middle" font-size="12" font-weight="600" fill="currentColor">Durable SQLite &amp; Supervisor (P08, P20)</text>
+      <text x="756" y="164" text-anchor="middle" font-size="11" fill="currentColor" opacity="0.8">Tasks, attempts, events, artifacts, checkpoints</text>
+
+      <line x1="163" y1="184" x2="163" y2="210" stroke="currentColor" stroke-width="1.5" />
+      <line x1="460" y1="184" x2="460" y2="210" stroke="currentColor" stroke-width="1.5" />
+      <line x1="756" y1="184" x2="756" y2="210" stroke="currentColor" stroke-width="1.5" />
+
+      <rect x="10" y="210" width="290" height="76" rx="6" fill="none" stroke="currentColor" stroke-width="1.4" />
+      <text x="24" y="232" font-family="monospace" font-size="11" fill="currentColor" opacity="0.8">OS BOUNDARY (P09, P15)</text>
+      <text x="24" y="252" font-size="12" fill="currentColor">• Native process &amp; stream lifecycles</text>
+      <text x="24" y="270" font-size="12" fill="currentColor">• OS secret store &amp; isolated bindings</text>
+
+      <rect x="315" y="210" width="290" height="76" rx="6" fill="none" stroke="currentColor" stroke-width="1.4" />
+      <text x="329" y="232" font-family="monospace" font-size="11" fill="currentColor" opacity="0.8">ADAPTER 1 · CANDIDATE (P02, P12)</text>
+      <text x="329" y="252" font-size="12" font-weight="600" fill="currentColor">Codex App-Server Runtime</text>
+      <text x="329" y="270" font-size="12" fill="currentColor" opacity="0.85">Structured events, auth &amp; rate snapshots</text>
+
+      <rect x="620" y="210" width="290" height="76" rx="6" fill="none" stroke="currentColor" stroke-width="1.4" />
+      <text x="634" y="232" font-family="monospace" font-size="11" fill="currentColor" opacity="0.8">ADAPTER 2 · CONDITIONAL (P03, P13)</text>
+      <text x="634" y="252" font-size="12" font-weight="600" fill="currentColor">Antigravity (`agy`) / Muse / Claude API</text>
+      <text x="634" y="270" font-size="12" fill="currentColor" opacity="0.85">Admitted only after lifecycle &amp; auth proof</text>
+    </svg>
+    <figcaption>Figure 1. Provisional UCLI architecture separating user entrypoints, core domain resolution, OS process/credential isolation, and versioned runtime adapters (`docs/architecture.md`, `docs/contracts.md`).</figcaption>
+  </figure>
+</section>
+
+<section id="routing">
+  <p class="sec-label">04 · Accounts &amp; Automatic Routing</p>
+  <div class="col">
+    <h2>Isolated local credentials and explainable two-stage routing</h2>
+    <p>
+      Local work requires no cloud account. Optional GitHub sign-in in Phase 4 (`P28`, `GIT-01`) syncs device identity, user preferences, and non-secret connection metadata—it never grants provider model entitlement. Provider credentials remain local by default in OS secret stores with verified isolated binding (`P04`, `P15`). <strong>UCLI never rewrites or swaps the user's active shared native login</strong> to run or switch a UCLI task.
+    </p>
+    <p>
+      Automatic routing (`P18`) operates in two inspectable stages:
+    </p>
+    <ol class="compact-list">
+      <li><strong>Deterministic constraint filter:</strong> Enforces authorized account, model availability, tool permissions, data boundary, and budget rules. Default <code>auto</code> for model or effort never widens account or provider boundaries.</li>
+      <li><strong>Eligible route ranking:</strong> Orders surviving candidates by task quality fit, latency, and observed quota capacity. An optional bounded decision model (`P24`) comes later and cannot broaden authority.</li>
+    </ol>
+    <p>
+      Quota tracking (`P17`) treats <strong>unknown quota</strong> as distinct from both zero and unlimited: when a pool has no known exhaustion but lacks a verified remaining balance, UCLI permits at most <strong>one conservative in-flight task per authorized pool</strong>. Shared pools and reset timestamps record explicit provenance, and a crashed or canceled local worker never assumes upstream work stopped or frees its quota reservation until confirmed.
+    </p>
+  </div>
+</section>
+
+<section id="workflow">
+  <p class="sec-label">05 · Workflow &amp; Recovery</p>
+  <div class="col">
+    <h2>Durable task records, reconciliation, and explicit handoff packets</h2>
+    <p>
+      Every task persists durable SQLite records across attempts, streamed events, and output artifacts (`P08`). Task attempts terminate or pause in explicit states: <code>completed</code>, <code>blocked</code>, <code>failed</code>, <code>unknown</code>, or <code>interrupted</code>. When an interruption occurs after uncertain external side effects, retrying requires explicit state reconciliation (`P23`) rather than blind re-dispatch.
+    </p>
+    <p>
+      Multi-agent workflows (`P21`, `P22`) coordinate small dependency graphs with automated verification checks, isolated file-editing ownership, and explicit context packets. Switching models or runtimes mid-workflow transfers structured context packets and verified artifacts—never pretending private model memory is portable across providers.
+    </p>
+  </div>
+</section>
+
+<section id="phases">
+  <p class="sec-label">06 · Delivery Phases &amp; Kickoff Order</p>
+  <div class="col">
+    <h2>Five gated phases backed by consuming paths and failure evidence</h2>
+    <p>
+      Delivery progresses through five phases gated by milestones <code>G0</code>–<code>G4</code> (`docs/implementation-plan.md`, `docs/verification.md`). Every gate requires working consuming paths and negative/failure-boundary evidence. Execution starts in Phase 0 with coordinator <code>P00</code>, followed immediately by parallel spikes <code>P01</code>, <code>P02</code>, and <code>P05</code>; <code>P03</code> takes the next free slot, while <code>P04</code> waits on the concrete authentication paths established by <code>P02</code> and <code>P03</code> (`planning/kickoff.md`). Coordinator <code>G0</code> acceptance is required before starting <code>P06</code> production foundations.
+    </p>
+  </div>
+
+  <div class="tablewrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Phase &amp; Gate</th>
+          <th>Focus</th>
+          <th>Included Work Packages</th>
+          <th>Gate Exit Requirement</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="name">Phase 0 · G0</td>
+          <td>Feasibility &amp; Contracts</td>
+          <td><code>P00</code>, <code>P01</code>, <code>P02</code>, <code>P03</code>, <code>P04</code>, <code>P05</code></td>
+          <td>Vocabulary frozen; Go/process/PTY spike, two runtime spikes, multi-account isolation proof, and first-use UX verified.</td>
+        </tr>
+        <tr>
+          <td class="name">Phase 1 · G1</td>
+          <td>Useful Foreground Loop</td>
+          <td><code>P06</code>–<code>P14</code>, continuous tracks <code>P30</code>–<code>P33</code></td>
+          <td>End-to-end foreground task runs across both production adapters with SQLite durability, interactive home, and regression checks.</td>
+        </tr>
+        <tr>
+          <td class="name">Phase 2 · G2</td>
+          <td>Accounts, Capacity &amp; Routing</td>
+          <td><code>P15</code>, <code>P16</code>, <code>P17</code>, <code>P18</code>, <code>P19</code></td>
+          <td>Isolated multi-account switching, live catalogs, conservative quota reservations, and explainable deterministic routing.</td>
+        </tr>
+        <tr>
+          <td class="name">Phase 3 · G3</td>
+          <td>Durable Multi-Agent Workflows</td>
+          <td><code>P20</code>, <code>P21</code>, <code>P22</code>, <code>P23</code>, <code>P24</code></td>
+          <td>Optional supervisor reconnect, bounded workflow graphs, cross-agent handoff packets, reconciliation recovery, and routing evaluation.</td>
+        </tr>
+        <tr>
+          <td class="name">Phase 4 · G4</td>
+          <td>Sync, Extensions &amp; Release</td>
+          <td><code>P25</code>, <code>P26</code>, <code>P27</code>, <code>P28</code>, <code>P29</code>, <code>P34</code></td>
+          <td>Adapter extension kit, tiered provider admission, native escape hardening + optional read-only <code>cly</code> import preview, GitHub metadata sync, and release sign-off.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="performance">
+  <p class="sec-label">07 · Provisional Performance Targets</p>
+  <div class="col">
+    <h2>Local responsiveness budgets separated from provider inference latency</h2>
+    <p>
+      To keep everyday usage snappy, UCLI budgets local CLI and supervisor overhead separately from upstream model generation time (`P30`, `docs/verification.md`). All values below are <strong>provisional p95 targets—none have been measured yet</strong>. Verification requires <strong>30 cold</strong> and <strong>100 warm</strong> benchmark runs on packaged <strong>Windows x64</strong>, <strong>macOS ARM64</strong>, and <strong>Linux x64</strong> builds.
+    </p>
+  </div>
+
+  <div class="tablewrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Operation / Resource</th>
+          <th>Provisional Target</th>
+          <th>Measurement Scope &amp; Boundary</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="name">Help, version &amp; shell completion</td>
+          <td><span class="chip c-good">p95 ≤ 100 ms</span></td>
+          <td>Packaged binary cold/warm local CLI invocation (`P10`).</td>
+        </tr>
+        <tr>
+          <td class="name">Cached model &amp; task lists</td>
+          <td><span class="chip c-good">p95 ≤ 150 ms</span></td>
+          <td>Local SQLite/cache read (`ucli models`, `ucli tasks`) without live network poll.</td>
+        </tr>
+        <tr>
+          <td class="name">Cached interactive home launch</td>
+          <td><span class="chip c-good">p95 ≤ 250 ms</span></td>
+          <td>Prompt ready with visible model/account/effort controls (`P11`).</td>
+        </tr>
+        <tr>
+          <td class="name">Effective-setting resolution</td>
+          <td><span class="chip c-good">p95 ≤ 25 ms</span></td>
+          <td>Typed config/flag/preset resolution (`P07`), excluding OS secret retrieval.</td>
+        </tr>
+        <tr>
+          <td class="name">Added foreground wrapper overhead</td>
+          <td><span class="chip c-good">p95 ≤ 150 ms</span></td>
+          <td>Cold UCLI with healthy local credentials; added startup overhead over matching direct launch, with provider latency reported separately.</td>
+        </tr>
+        <tr>
+          <td class="name">Start through warm supervisor</td>
+          <td><span class="chip c-good">p95 ≤ 75 ms</span></td>
+          <td>75 ms added over matching direct launch; authenticated local IPC and the same resolved request.</td>
+        </tr>
+        <tr>
+          <td class="name">First user-visible feedback</td>
+          <td><span class="chip c-good">p95 ≤ 100 ms</span></td>
+          <td>Acknowledgement from command submission to initial status indicator.</td>
+        </tr>
+        <tr>
+          <td class="name">Stream-to-display latency</td>
+          <td><span class="chip c-good">p95 ≤ 25 ms</span></td>
+          <td>Adapter event receipt to terminal render without tearing scrollback (`P09`, `P11`).</td>
+        </tr>
+        <tr>
+          <td class="name">Cancellation acknowledgment</td>
+          <td><span class="chip c-good">p95 ≤ 100 ms</span></td>
+          <td>User cancel signal to local UI confirmation and state transition (`P23`); local acknowledgement only, not proof provider work has stopped.</td>
+        </tr>
+        <tr>
+          <td class="name">Cooperative fixture stop</td>
+          <td><span class="chip c-warn">≤ 2 s</span></td>
+          <td>Graceful child tree shutdown in controlled adapter fixture tests (`P09`).</td>
+        </tr>
+        <tr>
+          <td class="name">Idle supervisor footprint</td>
+          <td><span class="chip c-good">&lt; 75 MB · &lt; 0.5% core</span></td>
+          <td>Steady-state memory and CPU with zero active tasks (`P20`, `P30`).</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="packages-sources">
+  <p class="sec-label">08 · Work Packages, Open Decisions &amp; Primary Sources</p>
+  <div class="col">
+    <h2>Interactive work package explorer (`P00`–`P34`)</h2>
+    <p>
+      Explore all 35 planned work packages from <code>planning/work-packages.md</code> and <code>planning/backlog.json</code>. Filter by phase or search across package IDs, titles, goals, and dependencies. Print view automatically reveals every work package and its full dependency details.
+    </p>
+  </div>
+
+  <div class="explorer-frame" aria-label="Work package explorer">
+    <div class="explorer-toolbar">
+      <div class="search-field">
+        <label for="pkg-search">Search ID, title, goal, or dependency</label>
+        <input type="search" id="pkg-search" placeholder="e.g. P04, quota, Codex, supervisor…" autocomplete="off" />
+      </div>
+      <div class="phase-filters" role="group" aria-label="Filter by delivery phase">
+        <button type="button" class="phase-btn" data-phase="all" aria-pressed="true">All (35)</button>
+        <button type="button" class="phase-btn" data-phase="0" aria-pressed="false">Phase 0 (6)</button>
+        <button type="button" class="phase-btn" data-phase="1" aria-pressed="false">Phase 1 (13)</button>
+        <button type="button" class="phase-btn" data-phase="2" aria-pressed="false">Phase 2 (5)</button>
+        <button type="button" class="phase-btn" data-phase="3" aria-pressed="false">Phase 3 (5)</button>
+        <button type="button" class="phase-btn" data-phase="4" aria-pressed="false">Phase 4 (6)</button>
+      </div>
+      <div class="explorer-actions">
+        <p class="pkg-count" id="pkg-count" aria-live="polite">Showing 35 of 35 work packages</p>
+        <div class="action-btns">
+          <button type="button" class="util-btn" id="pkg-expand-all" aria-expanded="false">Expand all details</button>
+          <button type="button" class="util-btn" id="pkg-reset">Reset filters</button>
+        </div>
+      </div>
+    </div>
+
+    <p class="pkg-empty" id="pkg-empty" hidden>No work packages match the current search and phase filter. Try clearing the filter.</p>
+
+    <div class="pkg-grid" id="pkg-grid">
+      <article class="pkg-card" id="pkg-P00" data-id="P00" data-phase="0" data-deps="" data-unblocks="P01,P02,P03,P05,P07">
+        <div class="pkg-head">
+          <span class="pkg-id">P00</span>
+          <span class="chip c-warn">Phase 0 · G0</span>
+          <h3 class="pkg-title">Freeze the first contract and product baseline</h3>
+          <button type="button" class="pkg-toggle" aria-expanded="false" aria-controls="detail-P00">Details</button>
+        </div>
+        <p class="pkg-goal">Resolve command, identity, event and permission vocabulary before shared implementation.</p>
+        <p class="pkg-meta"><strong>Depends on:</strong> None (Kickoff coordinator)</p>
+        <div class="pkg-detail" id="detail-P00" hidden>
+          <p><strong>Unblocks:</strong> <code>P01</code>, <code>P02</code>, <code>P03</code>, <code>P05</code>, <code>P07</code></p>
+          <p><strong>Kickoff role:</strong> Runs first at project start so parallel spikes share one canonical domain vocabulary (`planning/kickoff.md`).</p>
+        </div>
+      </article>
+
+      <article class="pkg-card" id="pkg-P01" data-id="P01" data-phase="0" data-deps="P00" data-unblocks="P06">
+        <div class="pkg-head">
+          <span class="pkg-id">P01</span>
+          <span class="chip c-warn">Phase 0 · G0</span>
+          <h3 class="pkg-title">Validate packaged core, process and terminal choices</h3>
+          <button type="button" class="pkg-toggle" aria-expanded="false" aria-controls="detail-P01">Details</button>
+        </div>
+        <p class="pkg-goal">Prove a practical core stack with bounded disposable experiments.</p>
+        <p class="pkg-meta"><strong>Depends on:</strong> <code>P00</code></p>
+        <div class="pkg-detail" id="detail-P01" hidden>
+          <p><strong>Unblocks:</strong> <code>P06</code></p>
+          <p><strong>Kickoff role:</strong> Parallel wave 1 after <code>P00</code>; tests provisional Go binary, child process tree control, and terminal rendering across OS targets.</p>
+        </div>
+      </article>
+
+      <article class="pkg-card" id="pkg-P02" data-id="P02" data-phase="0" data-deps="P00" data-unblocks="P04,P12">
+        <div class="pkg-head">
+          <span class="pkg-id">P02</span>
+          <span class="chip c-warn">Phase 0 · G0</span>
+          <h3 class="pkg-title">Prove the first structured runtime</h3>
+          <button type="button" class="pkg-toggle" aria-expanded="false" aria-controls="detail-P02">Details</button>
+        </div>
+        <p class="pkg-goal">Validate a Codex managed integration without inferring capability from catalog alone.</p>
+        <p class="pkg-meta"><strong>Depends on:</strong> <code>P00</code></p>
+        <div class="pkg-detail" id="detail-P02" hidden>
+          <p><strong>Unblocks:</strong> <code>P04</code>, <code>P12</code></p>
+          <p><strong>Kickoff role:</strong> Parallel wave 1 after <code>P00</code>; verifies Codex app-server (`OAI-01`, `OAI-04`) lifecycle, structured events, and auth surface.</p>
+        </div>
+      </article>
+
+      <article class="pkg-card" id="pkg-P03" data-id="P03" data-phase="0" data-deps="P00" data-unblocks="P04,P13">
+        <div class="pkg-head">
+          <span class="pkg-id">P03</span>
+          <span class="chip c-warn">Phase 0 · G0</span>
+          <h3 class="pkg-title">Prove and choose a second runtime</h3>
+          <button type="button" class="pkg-toggle" aria-expanded="false" aria-controls="detail-P03">Details</button>
+        </div>
+        <p class="pkg-goal">Choose a second daily-use runtime by supported lifecycle and UX fit.</p>
+        <p class="pkg-meta"><strong>Depends on:</strong> <code>P00</code></p>
+        <div class="pkg-detail" id="detail-P03" hidden>
+          <p><strong>Unblocks:</strong> <code>P04</code>, <code>P13</code></p>
+          <p><strong>Kickoff role:</strong> Takes the next free slot after wave 1; evaluates Antigravity (`AGY-01`) first, with Meta Muse (`MUS-01`) or Claude API (`CLA-01`) as fallbacks.</p>
+        </div>
+      </article>
+
+      <article class="pkg-card" id="pkg-P04" data-id="P04" data-phase="0" data-deps="P02,P03" data-unblocks="P06,P15">
+        <div class="pkg-head">
+          <span class="pkg-id">P04</span>
+          <span class="chip c-warn">Phase 0 · G0</span>
+          <h3 class="pkg-title">Prove account and quota isolation</h3>
+          <button type="button" class="pkg-toggle" aria-expanded="false" aria-controls="detail-P04">Details</button>
+        </div>
+        <p class="pkg-goal">Test the riskiest multi-account assumptions before building account switching.</p>
+        <p class="pkg-meta"><strong>Depends on:</strong> <code>P02</code>, <code>P03</code></p>
+        <div class="pkg-detail" id="detail-P04" hidden>
+          <p><strong>Unblocks:</strong> <code>P06</code>, <code>P15</code></p>
+          <p><strong>Kickoff role:</strong> Waits for concrete auth routes from <code>P02</code> and <code>P03</code>; verifies that UCLI profiles never overwrite shared native logins.</p>
+        </div>
+      </article>
+
+      <article class="pkg-card" id="pkg-P05" data-id="P05" data-phase="0" data-deps="P00" data-unblocks="P06,P11">
+        <div class="pkg-head">
+          <span class="pkg-id">P05</span>
+          <span class="chip c-warn">Phase 0 · G0</span>
+          <h3 class="pkg-title">Validate first-use and recovery experience</h3>
+          <button type="button" class="pkg-toggle" aria-expanded="false" aria-controls="detail-P05">Details</button>
+        </div>
+        <p class="pkg-goal">Find friction before committing to the interface framework.</p>
+        <p class="pkg-meta"><strong>Depends on:</strong> <code>P00</code></p>
+        <div class="pkg-detail" id="detail-P05" hidden>
+          <p><strong>Unblocks:</strong> <code>P06</code>, <code>P11</code></p>
+          <p><strong>Kickoff role:</strong> Parallel wave 1 after <code>P00</code>; prototypes zero-memorization prompt controls, scrollback preservation, and interruption recovery.</p>
+        </div>
+      </article>
+
+      <article class="pkg-card" id="pkg-P06" data-id="P06" data-phase="1" data-deps="P01,P04,P05" data-unblocks="P07,P30">
+        <div class="pkg-head">
+          <span class="pkg-id">P06</span>
+          <span class="chip c-good">Phase 1 · G1</span>
+          <h3 class="pkg-title">Establish build and cross-platform foundation</h3>
+          <button type="button" class="pkg-toggle" aria-expanded="false" aria-controls="detail-P06">Details</button>
+        </div>
+        <p class="pkg-goal">Create only the runnable foundation needed by the first vertical slice.</p>
+        <p class="pkg-meta"><strong>Depends on:</strong> <code>P01</code>, <code>P04</code>, <code>P05</code></p>
+        <div class="pkg-detail" id="detail-P06" hidden>
+          <p><strong>Unblocks:</strong> <code>P07</code>, <code>P30</code></p>
+          <p><strong>Milestone scope:</strong> Sets up reproducible Windows, macOS, and Linux builds and test harness without premature abstraction.</p>
+        </div>
+      </article>
+
+      <article class="pkg-card" id="pkg-P07" data-id="P07" data-phase="1" data-deps="P00,P06" data-unblocks="P08,P09,P10,P12,P13,P18">
+        <div class="pkg-head">
+          <span class="pkg-id">P07</span>
+          <span class="chip c-good">Phase 1 · G1</span>
+          <h3 class="pkg-title">Implement domain and effective-setting contracts</h3>
+          <button type="button" class="pkg-toggle" aria-expanded="false" aria-controls="detail-P07">Details</button>
+        </div>
+        <p class="pkg-goal">Provide typed contracts and one resolver used by every entrypoint.</p>
+        <p class="pkg-meta"><strong>Depends on:</strong> <code>P00</code>, <code>P06</code></p>
+        <div class="pkg-detail" id="detail-P07" hidden>
+          <p><strong>Unblocks:</strong> <code>P08</code>, <code>P09</code>, <code>P10</code>, <code>P12</code>, <code>P13</code>, <code>P18</code></p>
+          <p><strong>Milestone scope:</strong> Codifies separate model, runtime, account, task, and preset types with deterministic precedence (&lt; 25 ms p95 target).</p>
+        </div>
+      </article>
+
+      <article class="pkg-card" id="pkg-P08" data-id="P08" data-phase="1" data-deps="P07" data-unblocks="P14,P15,P17,P22,P31">
+        <div class="pkg-head">
+          <span class="pkg-id">P08</span>
+          <span class="chip c-good">Phase 1 · G1</span>
+          <h3 class="pkg-title">Implement durable state and artifacts</h3>
+          <button type="button" class="pkg-toggle" aria-expanded="false" aria-controls="detail-P08">Details</button>
+        </div>
+        <p class="pkg-goal">Persist critical intent/results and recover incomplete writes.</p>
+        <p class="pkg-meta"><strong>Depends on:</strong> <code>P07</code></p>
+        <div class="pkg-detail" id="detail-P08" hidden>
+          <p><strong>Unblocks:</strong> <code>P14</code>, <code>P15</code>, <code>P17</code>, <code>P22</code>, <code>P31</code></p>
+          <p><strong>Milestone scope:</strong> Local SQLite store for tasks, attempts, events, and artifacts with crash-safe write recovery.</p>
+        </div>
+      </article>
+
+      <article class="pkg-card" id="pkg-P09" data-id="P09" data-phase="1" data-deps="P07" data-unblocks="P12,P13,P14,P15,P27,P30,P31">
+        <div class="pkg-head">
+          <span class="pkg-id">P09</span>
+          <span class="chip c-good">Phase 1 · G1</span>
+          <h3 class="pkg-title">Implement portable process and stream execution</h3>
+          <button type="button" class="pkg-toggle" aria-expanded="false" aria-controls="detail-P09">Details</button>
+        </div>
+        <p class="pkg-goal">Own child lifecycles and streams without shell injection or unrelated process impact.</p>
+        <p class="pkg-meta"><strong>Depends on:</strong> <code>P07</code></p>
+        <div class="pkg-detail" id="detail-P09" hidden>
+          <p><strong>Unblocks:</strong> <code>P12</code>, <code>P13</code>, <code>P14</code>, <code>P15</code>, <code>P27</code>, <code>P30</code>, <code>P31</code></p>
+          <p><strong>Milestone scope:</strong> Safe argument spawning, structured stdout/stderr streaming, and cooperative 2s fixture termination.</p>
+        </div>
+      </article>
+
+      <article class="pkg-card" id="pkg-P10" data-id="P10" data-phase="1" data-deps="P07" data-unblocks="P11,P14">
+        <div class="pkg-head">
+          <span class="pkg-id">P10</span>
+          <span class="chip c-good">Phase 1 · G1</span>
+          <h3 class="pkg-title">Implement unified commands, help and completion</h3>
+          <button type="button" class="pkg-toggle" aria-expanded="false" aria-controls="detail-P10">Details</button>
+        </div>
+        <p class="pkg-goal">Make commands discoverable and scripts dependable from one command registry.</p>
+        <p class="pkg-meta"><strong>Depends on:</strong> <code>P07</code></p>
+        <div class="pkg-detail" id="detail-P10" hidden>
+          <p><strong>Unblocks:</strong> <code>P11</code>, <code>P14</code></p>
+          <p><strong>Milestone scope:</strong> Single registry driving CLI parsing, contextual help, shell completions (p95 ≤ 100 ms), and interactive palette actions.</p>
+        </div>
+      </article>
+
+      <article class="pkg-card" id="pkg-P11" data-id="P11" data-phase="1" data-deps="P05,P10" data-unblocks="P14,P32">
+        <div class="pkg-head">
+          <span class="pkg-id">P11</span>
+          <span class="chip c-good">Phase 1 · G1</span>
+          <h3 class="pkg-title">Implement prompt, home and visible controls</h3>
+          <button type="button" class="pkg-toggle" aria-expanded="false" aria-controls="detail-P11">Details</button>
+        </div>
+        <p class="pkg-goal">Deliver a small useful interactive home, preserving scrollback and input.</p>
+        <p class="pkg-meta"><strong>Depends on:</strong> <code>P05</code>, <code>P10</code></p>
+        <div class="pkg-detail" id="detail-P11" hidden>
+          <p><strong>Unblocks:</strong> <code>P14</code>, <code>P32</code></p>
+          <p><strong>Milestone scope:</strong> Interactive surface launching in ≤ 250 ms cached p95 with keyboard-accessible model, account, and effort indicators.</p>
+        </div>
+      </article>
+
+      <article class="pkg-card" id="pkg-P12" data-id="P12" data-phase="1" data-deps="P02,P07,P09" data-unblocks="P14,P16,P25,P31">
+        <div class="pkg-head">
+          <span class="pkg-id">P12</span>
+          <span class="chip c-good">Phase 1 · G1</span>
+          <h3 class="pkg-title">Implement first production adapter</h3>
+          <button type="button" class="pkg-toggle" aria-expanded="false" aria-controls="detail-P12">Details</button>
+        </div>
+        <p class="pkg-goal">Turn the proven Codex route into a bounded production adapter.</p>
+        <p class="pkg-meta"><strong>Depends on:</strong> <code>P02</code>, <code>P07</code>, <code>P09</code></p>
+        <div class="pkg-detail" id="detail-P12" hidden>
+          <p><strong>Unblocks:</strong> <code>P14</code>, <code>P16</code>, <code>P25</code>, <code>P31</code></p>
+          <p><strong>Milestone scope:</strong> Production-grade Codex app-server adapter with version pinning, event translation, and error taxonomy.</p>
+        </div>
+      </article>
+
+      <article class="pkg-card" id="pkg-P13" data-id="P13" data-phase="1" data-deps="P03,P07,P09" data-unblocks="P14,P16,P22,P25">
+        <div class="pkg-head">
+          <span class="pkg-id">P13</span>
+          <span class="chip c-good">Phase 1 · G1</span>
+          <h3 class="pkg-title">Implement second production adapter</h3>
+          <button type="button" class="pkg-toggle" aria-expanded="false" aria-controls="detail-P13">Details</button>
+        </div>
+        <p class="pkg-goal">Prove provider-independent core behavior with the second admitted runtime.</p>
+        <p class="pkg-meta"><strong>Depends on:</strong> <code>P03</code>, <code>P07</code>, <code>P09</code></p>
+        <div class="pkg-detail" id="detail-P13" hidden>
+          <p><strong>Unblocks:</strong> <code>P14</code>, <code>P16</code>, <code>P22</code>, <code>P25</code></p>
+          <p><strong>Milestone scope:</strong> Validates that UCLI core contracts hold across two distinct provider runtimes without leaky abstractions.</p>
+        </div>
+      </article>
+
+      <article class="pkg-card" id="pkg-P14" data-id="P14" data-phase="1" data-deps="P08,P09,P10,P11,P12,P13" data-unblocks="P19,P20,P29,P32,P33">
+        <div class="pkg-head">
+          <span class="pkg-id">P14</span>
+          <span class="chip c-good">Phase 1 · G1</span>
+          <h3 class="pkg-title">Integrate a complete foreground task</h3>
+          <button type="button" class="pkg-toggle" aria-expanded="false" aria-controls="detail-P14">Details</button>
+        </div>
+        <p class="pkg-goal">Ship the first useful local task loop across both runtimes.</p>
+        <p class="pkg-meta"><strong>Depends on:</strong> <code>P08</code>, <code>P09</code>, <code>P10</code>, <code>P11</code>, <code>P12</code>, <code>P13</code></p>
+        <div class="pkg-detail" id="detail-P14" hidden>
+          <p><strong>Unblocks:</strong> <code>P19</code>, <code>P20</code>, <code>P29</code>, <code>P32</code>, <code>P33</code></p>
+          <p><strong>Milestone scope:</strong> Anchors Gate G1 by running, streaming, interrupting, and persisting foreground work across both adapters.</p>
+        </div>
+      </article>
+
+      <article class="pkg-card" id="pkg-P15" data-id="P15" data-phase="2" data-deps="P04,P08,P09" data-unblocks="P16,P17,P19,P20,P27,P28">
+        <div class="pkg-head">
+          <span class="pkg-id">P15</span>
+          <span class="chip">Phase 2 · G2</span>
+          <h3 class="pkg-title">Implement connection and credential management</h3>
+          <button type="button" class="pkg-toggle" aria-expanded="false" aria-controls="detail-P15">Details</button>
+        </div>
+        <p class="pkg-goal">Make accounts convenient without global login swaps or hidden identity changes.</p>
+        <p class="pkg-meta"><strong>Depends on:</strong> <code>P04</code>, <code>P08</code>, <code>P09</code></p>
+        <div class="pkg-detail" id="detail-P15" hidden>
+          <p><strong>Unblocks:</strong> <code>P16</code>, <code>P17</code>, <code>P19</code>, <code>P20</code>, <code>P27</code>, <code>P28</code></p>
+          <p><strong>Milestone scope:</strong> OS secret-store integration and isolated per-task credential binding without mutating native shared logins.</p>
+        </div>
+      </article>
+
+      <article class="pkg-card" id="pkg-P16" data-id="P16" data-phase="2" data-deps="P12,P13,P15" data-unblocks="P17,P18,P19">
+        <div class="pkg-head">
+          <span class="pkg-id">P16</span>
+          <span class="chip">Phase 2 · G2</span>
+          <h3 class="pkg-title">Implement model and capability catalogs</h3>
+          <button type="button" class="pkg-toggle" aria-expanded="false" aria-controls="detail-P16">Details</button>
+        </div>
+        <p class="pkg-goal">Expose current model choices without hard-coded entitlement assumptions.</p>
+        <p class="pkg-meta"><strong>Depends on:</strong> <code>P12</code>, <code>P13</code>, <code>P15</code></p>
+        <div class="pkg-detail" id="detail-P16" hidden>
+          <p><strong>Unblocks:</strong> <code>P17</code>, <code>P18</code>, <code>P19</code></p>
+          <p><strong>Milestone scope:</strong> Separates catalog visibility from verified account entitlement (`OAI-04`) and caches model lists (p95 ≤ 150 ms).</p>
+        </div>
+      </article>
+
+      <article class="pkg-card" id="pkg-P17" data-id="P17" data-phase="2" data-deps="P15,P16,P08" data-unblocks="P18,P26">
+        <div class="pkg-head">
+          <span class="pkg-id">P17</span>
+          <span class="chip">Phase 2 · G2</span>
+          <h3 class="pkg-title">Implement quota observation and reservations</h3>
+          <button type="button" class="pkg-toggle" aria-expanded="false" aria-controls="detail-P17">Details</button>
+        </div>
+        <p class="pkg-goal">Coordinate local tasks against truthful capacity observations.</p>
+        <p class="pkg-meta"><strong>Depends on:</strong> <code>P15</code>, <code>P16</code>, <code>P08</code></p>
+        <div class="pkg-detail" id="detail-P17" hidden>
+          <p><strong>Unblocks:</strong> <code>P18</code>, <code>P26</code></p>
+          <p><strong>Milestone scope:</strong> Tracks `unknown` vs. zero/unlimited quota, enforces 1 in-flight task per unknown pool, and preserves uncertain reservations on crash.</p>
+        </div>
+      </article>
+
+      <article class="pkg-card" id="pkg-P18" data-id="P18" data-phase="2" data-deps="P07,P16,P17" data-unblocks="P19,P21,P24,P25">
+        <div class="pkg-head">
+          <span class="pkg-id">P18</span>
+          <span class="chip">Phase 2 · G2</span>
+          <h3 class="pkg-title">Implement deterministic routing and explanation</h3>
+          <button type="button" class="pkg-toggle" aria-expanded="false" aria-controls="detail-P18">Details</button>
+        </div>
+        <p class="pkg-goal">Choose eligible routes predictably with inspectable reasons.</p>
+        <p class="pkg-meta"><strong>Depends on:</strong> <code>P07</code>, <code>P16</code>, <code>P17</code></p>
+        <div class="pkg-detail" id="detail-P18" hidden>
+          <p><strong>Unblocks:</strong> <code>P19</code>, <code>P21</code>, <code>P24</code>, <code>P25</code></p>
+          <p><strong>Milestone scope:</strong> Filters by account/model/permission/data/budget constraints first, then ranks by quality, latency, and capacity with human-readable rationale.</p>
+        </div>
+      </article>
+
+      <article class="pkg-card" id="pkg-P19" data-id="P19" data-phase="2" data-deps="P14,P15,P16,P18" data-unblocks="P23,P27,P29">
+        <div class="pkg-head">
+          <span class="pkg-id">P19</span>
+          <span class="chip">Phase 2 · G2</span>
+          <h3 class="pkg-title">Integrate model/account choices into everyday work</h3>
+          <button type="button" class="pkg-toggle" aria-expanded="false" aria-controls="detail-P19">Details</button>
+        </div>
+        <p class="pkg-goal">Make automatic and manual choices easy to understand and recover.</p>
+        <p class="pkg-meta"><strong>Depends on:</strong> <code>P14</code>, <code>P15</code>, <code>P16</code>, <code>P18</code></p>
+        <div class="pkg-detail" id="detail-P19" hidden>
+          <p><strong>Unblocks:</strong> <code>P23</code>, <code>P27</code>, <code>P29</code></p>
+          <p><strong>Milestone scope:</strong> Surfaces routing explanations, quota warnings, and one-keystroke account/model overrides in the interactive home (Gate G2).</p>
+        </div>
+      </article>
+
+      <article class="pkg-card" id="pkg-P20" data-id="P20" data-phase="3" data-deps="P14,P15" data-unblocks="P21">
+        <div class="pkg-head">
+          <span class="pkg-id">P20</span>
+          <span class="chip">Phase 3 · G3</span>
+          <h3 class="pkg-title">Implement optional supervisor and reconnect</h3>
+          <button type="button" class="pkg-toggle" aria-expanded="false" aria-controls="detail-P20">Details</button>
+        </div>
+        <p class="pkg-goal">Keep accepted managed work alive independently of its UI.</p>
+        <p class="pkg-meta"><strong>Depends on:</strong> <code>P14</code>, <code>P15</code></p>
+        <div class="pkg-detail" id="detail-P20" hidden>
+          <p><strong>Unblocks:</strong> <code>P21</code></p>
+          <p><strong>Milestone scope:</strong> Background process with ≤ 75 ms warm attach, &lt; 75 MB RSS and &lt; 0.5% CPU idle budget.</p>
+        </div>
+      </article>
+
+      <article class="pkg-card" id="pkg-P21" data-id="P21" data-phase="3" data-deps="P18,P20" data-unblocks="P22,P23,P28">
+        <div class="pkg-head">
+          <span class="pkg-id">P21</span>
+          <span class="chip">Phase 3 · G3</span>
+          <h3 class="pkg-title">Implement workflow graph and scheduling</h3>
+          <button type="button" class="pkg-toggle" aria-expanded="false" aria-controls="detail-P21">Details</button>
+        </div>
+        <p class="pkg-goal">Run editable dependent tasks with clear ownership and bounded concurrency.</p>
+        <p class="pkg-meta"><strong>Depends on:</strong> <code>P18</code>, <code>P20</code></p>
+        <div class="pkg-detail" id="detail-P21" hidden>
+          <p><strong>Unblocks:</strong> <code>P22</code>, <code>P23</code>, <code>P28</code></p>
+          <p><strong>Milestone scope:</strong> Small DAG execution with explicit file-editing ownership and verification gates between steps.</p>
+        </div>
+      </article>
+
+      <article class="pkg-card" id="pkg-P22" data-id="P22" data-phase="3" data-deps="P08,P13,P21" data-unblocks="P23">
+        <div class="pkg-head">
+          <span class="pkg-id">P22</span>
+          <span class="chip">Phase 3 · G3</span>
+          <h3 class="pkg-title">Implement checkpoints and cross-agent handoff</h3>
+          <button type="button" class="pkg-toggle" aria-expanded="false" aria-controls="detail-P22">Details</button>
+        </div>
+        <p class="pkg-goal">Transfer useful context and evidence without pretending native state portability.</p>
+        <p class="pkg-meta"><strong>Depends on:</strong> <code>P08</code>, <code>P13</code>, <code>P21</code></p>
+        <div class="pkg-detail" id="detail-P22" hidden>
+          <p><strong>Unblocks:</strong> <code>P23</code></p>
+          <p><strong>Milestone scope:</strong> Packages explicit context summaries, diffs, and test receipts when switching models or runtimes mid-task.</p>
+        </div>
+      </article>
+
+      <article class="pkg-card" id="pkg-P23" data-id="P23" data-phase="3" data-deps="P21,P22,P19" data-unblocks="P24,P29">
+        <div class="pkg-head">
+          <span class="pkg-id">P23</span>
+          <span class="chip">Phase 3 · G3</span>
+          <h3 class="pkg-title">Integrate workflow steering and recovery</h3>
+          <button type="button" class="pkg-toggle" aria-expanded="false" aria-controls="detail-P23">Details</button>
+        </div>
+        <p class="pkg-goal">Expose fluid task management with precise pause, cancel, retry and resume semantics.</p>
+        <p class="pkg-meta"><strong>Depends on:</strong> <code>P21</code>, <code>P22</code>, <code>P19</code></p>
+        <div class="pkg-detail" id="detail-P23" hidden>
+          <p><strong>Unblocks:</strong> <code>P24</code>, <code>P29</code></p>
+          <p><strong>Milestone scope:</strong> Enforces reconciliation before retrying attempts with `unknown` or `interrupted` external effects (p95 ≤ 100 ms cancel ack).</p>
+        </div>
+      </article>
+
+      <article class="pkg-card" id="pkg-P24" data-id="P24" data-phase="3" data-deps="P18,P23" data-unblocks="">
+        <div class="pkg-head">
+          <span class="pkg-id">P24</span>
+          <span class="chip">Phase 3 · G3</span>
+          <h3 class="pkg-title">Evaluate bounded decision-agent routing</h3>
+          <button type="button" class="pkg-toggle" aria-expanded="false" aria-controls="detail-P24">Details</button>
+        </div>
+        <p class="pkg-goal">Add model-assisted classification only when it improves real outcomes.</p>
+        <p class="pkg-meta"><strong>Depends on:</strong> <code>P18</code>, <code>P23</code></p>
+        <div class="pkg-detail" id="detail-P24" hidden>
+          <p><strong>Unblocks:</strong> Terminal Phase 3 evaluation package (Gate G3).</p>
+          <p><strong>Milestone scope:</strong> Benchmarks optional classifier inside the deterministic constraint envelope; cannot widen permissions, budgets, or accounts.</p>
+        </div>
+      </article>
+
+      <article class="pkg-card" id="pkg-P25" data-id="P25" data-phase="4" data-deps="P12,P13,P18" data-unblocks="P26,P29">
+        <div class="pkg-head">
+          <span class="pkg-id">P25</span>
+          <span class="chip">Phase 4 · G4</span>
+          <h3 class="pkg-title">Publish internal-quality adapter extension kit</h3>
+          <button type="button" class="pkg-toggle" aria-expanded="false" aria-controls="detail-P25">Details</button>
+        </div>
+        <p class="pkg-goal">Let independent developers add an adapter without generic core edits.</p>
+        <p class="pkg-meta"><strong>Depends on:</strong> <code>P12</code>, <code>P13</code>, <code>P18</code></p>
+        <div class="pkg-detail" id="detail-P25" hidden>
+          <p><strong>Unblocks:</strong> <code>P26</code>, <code>P29</code></p>
+          <p><strong>Milestone scope:</strong> Extracts a versioned plugin contract only after two production adapters (`P12`, `P13`) have proven the boundary.</p>
+        </div>
+      </article>
+
+      <article class="pkg-card" id="pkg-P26" data-id="P26" data-phase="4" data-deps="P25,P17" data-unblocks="">
+        <div class="pkg-head">
+          <span class="pkg-id">P26</span>
+          <span class="chip">Phase 4 · G4</span>
+          <h3 class="pkg-title">Admit additional providers by capability tier</h3>
+          <button type="button" class="pkg-toggle" aria-expanded="false" aria-controls="detail-P26">Details</button>
+        </div>
+        <p class="pkg-goal">Expand one requested provider at a time using the same admission route.</p>
+        <p class="pkg-meta"><strong>Depends on:</strong> <code>P25</code>, <code>P17</code></p>
+        <div class="pkg-detail" id="detail-P26" hidden>
+          <p><strong>Unblocks:</strong> Ongoing provider expansion (`GEM-01`, `OPC-01`, `KIM-01`, `QWE-01`, `LOC-01`).</p>
+          <p><strong>Milestone scope:</strong> Requires executable build verification, auth isolation tests, and quota provenance before admitting new runtimes.</p>
+        </div>
+      </article>
+
+      <article class="pkg-card" id="pkg-P27" data-id="P27" data-phase="4" data-deps="P09,P15,P19" data-unblocks="">
+        <div class="pkg-head">
+          <span class="pkg-id">P27</span>
+          <span class="chip">Phase 4 · G4</span>
+          <h3 class="pkg-title">Harden native escape and add optional cly import preview</h3>
+          <button type="button" class="pkg-toggle" aria-expanded="false" aria-controls="detail-P27">Details</button>
+        </div>
+        <p class="pkg-goal">Preserve access to native features and optional familiar settings without takeover.</p>
+        <p class="pkg-meta"><strong>Depends on:</strong> <code>P09</code>, <code>P15</code>, <code>P19</code></p>
+        <div class="pkg-detail" id="detail-P27" hidden>
+          <p><strong>Unblocks:</strong> Coexistence &amp; passthrough completion for Gate G4.</p>
+          <p><strong>Milestone scope:</strong> Read-only preview of selected `cly` preferences while keeping existing `cly` installation completely independent.</p>
+        </div>
+      </article>
+
+      <article class="pkg-card" id="pkg-P28" data-id="P28" data-phase="4" data-deps="P15,P21" data-unblocks="">
+        <div class="pkg-head">
+          <span class="pkg-id">P28</span>
+          <span class="chip">Phase 4 · G4</span>
+          <h3 class="pkg-title">Add GitHub identity and settings metadata sync</h3>
+          <button type="button" class="pkg-toggle" aria-expanded="false" aria-controls="detail-P28">Details</button>
+        </div>
+        <p class="pkg-goal">Associate devices/settings/connections while preserving local autonomy.</p>
+        <p class="pkg-meta"><strong>Depends on:</strong> <code>P15</code>, <code>P21</code></p>
+        <div class="pkg-detail" id="detail-P28" hidden>
+          <p><strong>Unblocks:</strong> Multi-device metadata sync for Gate G4 (`GIT-01`).</p>
+          <p><strong>Milestone scope:</strong> Syncs non-secret preferences and connection labels via GitHub; local tasks continue working offline without cloud sign-in.</p>
+        </div>
+      </article>
+
+      <article class="pkg-card" id="pkg-P29" data-id="P29" data-phase="4" data-deps="P14,P19,P23,P25" data-unblocks="P34">
+        <div class="pkg-head">
+          <span class="pkg-id">P29</span>
+          <span class="chip">Phase 4 · G4</span>
+          <h3 class="pkg-title">Harden packaging, updates and diagnostics</h3>
+          <button type="button" class="pkg-toggle" aria-expanded="false" aria-controls="detail-P29">Details</button>
+        </div>
+        <p class="pkg-goal">Ship reproducibly with safe state compatibility and usable troubleshooting.</p>
+        <p class="pkg-meta"><strong>Depends on:</strong> <code>P14</code>, <code>P19</code>, <code>P23</code>, <code>P25</code></p>
+        <div class="pkg-detail" id="detail-P29" hidden>
+          <p><strong>Unblocks:</strong> <code>P34</code></p>
+          <p><strong>Milestone scope:</strong> Cross-platform release archives, SQLite schema migration safety, and redacted diagnostic bundles.</p>
+        </div>
+      </article>
+
+      <article class="pkg-card" id="pkg-P30" data-id="P30" data-phase="1" data-deps="P06,P09" data-unblocks="P34">
+        <div class="pkg-head">
+          <span class="pkg-id">P30</span>
+          <span class="chip c-good">Phase 1 · G1–G4</span>
+          <h3 class="pkg-title">Maintain performance regression evidence</h3>
+          <button type="button" class="pkg-toggle" aria-expanded="false" aria-controls="detail-P30">Details</button>
+        </div>
+        <p class="pkg-goal">Keep perceived responsiveness and local overhead visible through development.</p>
+        <p class="pkg-meta"><strong>Depends on:</strong> <code>P06</code>, <code>P09</code></p>
+        <div class="pkg-detail" id="detail-P30" hidden>
+          <p><strong>Unblocks:</strong> <code>P34</code></p>
+          <p><strong>Milestone scope:</strong> Continuous benchmark harness (30 cold / 100 warm runs on Windows x64, macOS ARM64, Linux x64) enforcing p95 latency and idle budgets.</p>
+        </div>
+      </article>
+
+      <article class="pkg-card" id="pkg-P31" data-id="P31" data-phase="1" data-deps="P08,P09,P12" data-unblocks="P34">
+        <div class="pkg-head">
+          <span class="pkg-id">P31</span>
+          <span class="chip c-good">Phase 1 · G1–G4</span>
+          <h3 class="pkg-title">Maintain failure and privacy boundary coverage</h3>
+          <button type="button" class="pkg-toggle" aria-expanded="false" aria-controls="detail-P31">Details</button>
+        </div>
+        <p class="pkg-goal">Exercise cross-boundary failures before release rather than after data loss.</p>
+        <p class="pkg-meta"><strong>Depends on:</strong> <code>P08</code>, <code>P09</code>, <code>P12</code></p>
+        <div class="pkg-detail" id="detail-P31" hidden>
+          <p><strong>Unblocks:</strong> <code>P34</code></p>
+          <p><strong>Milestone scope:</strong> Continuous fault-injection for interrupted workers, corrupted streams, secret redaction, and account-isolation boundaries.</p>
+        </div>
+      </article>
+
+      <article class="pkg-card" id="pkg-P32" data-id="P32" data-phase="1" data-deps="P11,P14" data-unblocks="P34">
+        <div class="pkg-head">
+          <span class="pkg-id">P32</span>
+          <span class="chip c-good">Phase 1 · G1–G4</span>
+          <h3 class="pkg-title">Run recurring usability and accessibility checks</h3>
+          <button type="button" class="pkg-toggle" aria-expanded="false" aria-controls="detail-P32">Details</button>
+        </div>
+        <p class="pkg-goal">Use real user behavior to guide comfort and discovery.</p>
+        <p class="pkg-meta"><strong>Depends on:</strong> <code>P11</code>, <code>P14</code></p>
+        <div class="pkg-detail" id="detail-P32" hidden>
+          <p><strong>Unblocks:</strong> <code>P34</code></p>
+          <p><strong>Milestone scope:</strong> Keyboard-only navigation, screen-reader/contrast checks, and zero-memorization task walkthroughs across milestones.</p>
+        </div>
+      </article>
+
+      <article class="pkg-card" id="pkg-P33" data-id="P33" data-phase="1" data-deps="P14" data-unblocks="P34">
+        <div class="pkg-head">
+          <span class="pkg-id">P33</span>
+          <span class="chip c-good">Phase 1 · G1–G4</span>
+          <h3 class="pkg-title">Maintain onboarding and capability documentation</h3>
+          <button type="button" class="pkg-toggle" aria-expanded="false" aria-controls="detail-P33">Details</button>
+        </div>
+        <p class="pkg-goal">Keep help and documentation aligned with actual supported behavior.</p>
+        <p class="pkg-meta"><strong>Depends on:</strong> <code>P14</code></p>
+        <div class="pkg-detail" id="detail-P33" hidden>
+          <p><strong>Unblocks:</strong> <code>P34</code></p>
+          <p><strong>Milestone scope:</strong> Verifies that CLI examples, capability tables, and troubleshooting guides match tested adapter builds.</p>
+        </div>
+      </article>
+
+      <article class="pkg-card" id="pkg-P34" data-id="P34" data-phase="4" data-deps="P29,P30,P31,P32,P33" data-unblocks="">
+        <div class="pkg-head">
+          <span class="pkg-id">P34</span>
+          <span class="chip">Phase 4 · G4</span>
+          <h3 class="pkg-title">Integrate and sign off milestone evidence</h3>
+          <button type="button" class="pkg-toggle" aria-expanded="false" aria-controls="detail-P34">Details</button>
+        </div>
+        <p class="pkg-goal">Make readiness explicit per milestone, provider and platform.</p>
+        <p class="pkg-meta"><strong>Depends on:</strong> <code>P29</code>, <code>P30</code>, <code>P31</code>, <code>P32</code>, <code>P33</code></p>
+        <div class="pkg-detail" id="detail-P34" hidden>
+          <p><strong>Unblocks:</strong> Final Gate G4 release readiness sign-off.</p>
+          <p><strong>Milestone scope:</strong> Aggregates consuming-path receipts, benchmark runs, and failure-boundary proofs across Windows x64, macOS ARM64, and Linux x64.</p>
+        </div>
+      </article>
+    </div>
+  </div>
+
+  <div class="col sub-block" id="decisions">
+    <h3>Open decisions reserved for owner review</h3>
+    <p>
+      Routine implementation choices stay inside work packages, while concrete experience and boundary tradeoffs come back to the project owner at phase gates:
+    </p>
+    <ul class="compact-list">
+      <li><strong>Core stack confirmation (`P01`):</strong> Accept the provisional Go binary only after packaged process, PTY, and startup spikes pass on Windows, macOS, and Linux.</li>
+      <li><strong>Second daily-use runtime (`P03`):</strong> Confirm Antigravity (`agy`) vs. Meta Muse Code fallback or authorized Claude API path based on lifecycle and UX fit.</li>
+      <li><strong>Provider account isolation &amp; authorization (`P04`, `P15`):</strong> Approve only auth modes proven not to clobber shared native logins or violate provider terms (`OAI-03`, `CLA-03`).</li>
+      <li><strong>Effort vocabulary mapping (`P07`, `P16`):</strong> Review how UCLI effort presets map onto provider-specific reasoning controls without implying identical compute budgets.</li>
+      <li><strong>GitHub App vs. OAuth client (`P28`):</strong> Choose the device/OAuth registration path (`GIT-01`) for syncing identity and non-secret connection metadata.</li>
+      <li><strong>Keychain &amp; headless fallback (`P15`):</strong> Decide fallback behavior when an OS secret store is locked or unavailable in headless sessions.</li>
+      <li><strong>Packaging &amp; update channel (`P29`):</strong> Select the distribution and rollback mechanism for all three target platforms.</li>
+    </ul>
+  </div>
+
+  <div class="col sub-block" id="sources">
+    <h3>Primary sources &amp; local research boundaries (checked 2026-10-17)</h3>
+    <p>
+      Planning research inspected official provider documentation and local PATH/launcher metadata (`codex.ps1`, `claude.exe`, `agy.exe`, and `muse.cmd` resolved on PATH; a sanitized zero-turn `agy` metadata receipt was recorded at <code>evidence/2026-10-17-plan/agy-availability.json</code>). No inference turns were run, no credentials were read or altered, and no pricing figures are assumed.
+    </p>
+  </div>
+
+  <div class="tablewrap">
+    <table>
+      <thead>
+        <tr>
+          <th>ID &amp; Primary Source</th>
+          <th>Supports in Planning</th>
+          <th>Does Not Establish (Requires Spike Proof)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="name"><code>OAI-01</code>–<code>OAI-05</code> · <a href="https://learn.chatgpt.com/docs/app-server" target="_blank" rel="noopener noreferrer">Codex app-server</a>, <a href="https://learn.chatgpt.com/docs/auth" target="_blank" rel="noopener noreferrer">Auth</a> &amp; <a href="https://developers.openai.com/siwc/token-sharing-open-source/codex-app-server" target="_blank" rel="noopener noreferrer">SIWC docs</a></td>
+          <td>Structured agent protocol, model/effort discovery, rate-limit snapshots, and catalog-vs-entitlement separation.</td>
+          <td>Concurrent multi-account keyring isolation (`P04`), universal catalog access, or parity with direct API limits (`OAI-05`).</td>
+        </tr>
+        <tr>
+          <td class="name"><code>AGY-01</code>–<code>AGY-03</code> · <a href="https://antigravity.google/docs/cli/headless/" target="_blank" rel="noopener noreferrer">Antigravity headless</a>, <a href="https://antigravity.google/docs/cli/commands/usage" target="_blank" rel="noopener noreferrer">usage</a> &amp; <a href="https://antigravity.google/docs/cli/credits" target="_blank" rel="noopener noreferrer">credits</a></td>
+          <td>Model/effort flags, structured print mode, session resume, and interactive usage/overage-credit controls.</td>
+          <td>Stable external quota schema for every slash command or UCLI enforcement of overage-credit toggles (`P03`, `P04`).</td>
+        </tr>
+        <tr>
+          <td class="name"><code>CLA-01</code>–<code>CLA-03</code> · <a href="https://code.claude.com/docs/en/agent-sdk/overview" target="_blank" rel="noopener noreferrer">Claude Agent SDK</a>, <a href="https://code.claude.com/docs/en/cli-reference" target="_blank" rel="noopener noreferrer">CLI reference</a> &amp; <a href="https://support.claude.com/en/articles/15036540-use-the-claude-agent-sdk-with-your-claude-plan" target="_blank" rel="noopener noreferrer">Plan update</a></td>
+          <td>Print mode, auth status, model/effort flags, and Oct 7 subscription usage clarification for described SDK/print cases.</td>
+          <td>Blanket permission to distribute a third-party `claude.ai` login wrapper or guaranteed feature parity across installed builds.</td>
+        </tr>
+        <tr>
+          <td class="name"><code>MUS-01</code> · <a href="https://dev.meta.ai/docs/muse-code" target="_blank" rel="noopener noreferrer">Meta Muse Code</a></td>
+          <td>Versioned `serve`/schema protocol and local `.muse-launcher.ps1` credential-path override observation.</td>
+          <td>Installed protocol conformance, usage API availability, or multi-account isolation proof (`P03`, `P04`).</td>
+        </tr>
+        <tr>
+          <td class="name"><code>GEM-01</code>–<code>GEM-04</code> · <a href="https://geminicli.com/docs/cli/headless/" target="_blank" rel="noopener noreferrer">Gemini headless</a>, <a href="https://geminicli.com/docs/get-started/authentication/" target="_blank" rel="noopener noreferrer">Auth</a> &amp; <a href="https://geminicli.com/docs/reference/commands/" target="_blank" rel="noopener noreferrer">Commands</a></td>
+          <td>JSON/JSONL headless events, cached authentication modes, and interactive `/stats model` display.</td>
+          <td>Stable headless quota endpoint, cross-runtime credential portability, or flags preventing every native fallback.</td>
+        </tr>
+        <tr>
+          <td class="name"><code>OPC-01</code>–<code>OPC-02</code>, <code>KIM-01</code>–<code>KIM-02</code>, <code>QWE-01</code>, <code>LOC-01</code> · <a href="https://opencode.ai/docs/server/" target="_blank" rel="noopener noreferrer">OpenCode</a>, <a href="https://www.kimi.com/code/docs/en/kimi-code-cli/reference/kimi-command.html" target="_blank" rel="noopener noreferrer">Kimi</a>, <a href="https://qwenlm.github.io/qwen-code-docs/en/developers/rest-api-integration/" target="_blank" rel="noopener noreferrer">Qwen</a> &amp; <a href="https://docs.ollama.com/api/openai-compatibility" target="_blank" rel="noopener noreferrer">Ollama</a></td>
+          <td>Documented server/ACP/REST/OpenAI-compatible surfaces for Phase 4 tiered provider admission (`P26`).</td>
+          <td>Local installation presence, quota contracts, or safe account replacement on shared servers.</td>
+        </tr>
+        <tr>
+          <td class="name"><code>GIT-01</code> · <a href="https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps" target="_blank" rel="noopener noreferrer">GitHub OAuth authorization</a></td>
+          <td>Device flow and OAuth lifecycle for optional Phase 4 identity and settings metadata sync (`P28`).</td>
+          <td>Any authentication or entitlement to independent AI provider subscriptions.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+</div>
+<script>
+(function () {
+  'use strict';
+
+  // 1. Theme switcher (System / Light / Dark)
+  var themeButtons = Array.prototype.slice.call(
+    document.querySelectorAll('.theme-btn[data-theme-set]')
+  );
+
+  function setTheme(mode) {
+    var root = document.documentElement;
+    if (mode === 'light' || mode === 'dark') {
+      root.setAttribute('data-theme', mode);
+      if (document.body) {
+        document.body.setAttribute('data-theme', mode);
+      }
+    } else {
+      root.removeAttribute('data-theme');
+      if (document.body) {
+        document.body.removeAttribute('data-theme');
+      }
+      mode = 'auto';
+    }
+
+    themeButtons.forEach(function (btn) {
+      var active = btn.getAttribute('data-theme-set') === mode;
+      btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+    });
+  }
+
+  themeButtons.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      setTheme(btn.getAttribute('data-theme-set'));
+    });
+  });
+
+  // 2. Work Package Explorer (Search + Phase Filter + Expand/Collapse + Reset)
+  var searchInput = document.getElementById('pkg-search');
+  var phaseButtons = Array.prototype.slice.call(
+    document.querySelectorAll('.phase-btn[data-phase]')
+  );
+  var cards = Array.prototype.slice.call(
+    document.querySelectorAll('.pkg-card[data-id]')
+  );
+  var countEl = document.getElementById('pkg-count');
+  var emptyEl = document.getElementById('pkg-empty');
+  var resetBtn = document.getElementById('pkg-reset');
+  var expandAllBtn = document.getElementById('pkg-expand-all');
+
+  var currentPhase = 'all';
+  var allExpanded = false;
+
+  function normalize(str) {
+    return (str || '').toLowerCase().trim();
+  }
+
+  function applyFilters() {
+    var query = normalize(searchInput ? searchInput.value : '');
+    var visibleCount = 0;
+
+    cards.forEach(function (card) {
+      var phase = card.getAttribute('data-phase') || '';
+      var id = card.getAttribute('data-id') || '';
+      var deps = card.getAttribute('data-deps') || '';
+      var unblocks = card.getAttribute('data-unblocks') || '';
+      var text = normalize(id + ' ' + deps + ' ' + unblocks + ' ' + card.textContent);
+
+      var phaseMatch = currentPhase === 'all' || phase === currentPhase;
+      var queryMatch = !query || text.indexOf(query) !== -1;
+
+      if (phaseMatch && queryMatch) {
+        card.hidden = false;
+        visibleCount += 1;
+      } else {
+        card.hidden = true;
+      }
+    });
+
+    if (countEl) {
+      countEl.textContent =
+        'Showing ' + visibleCount + ' of ' + cards.length + ' work packages';
+    }
+    if (emptyEl) {
+      emptyEl.hidden = visibleCount > 0;
+    }
+  }
+
+  if (searchInput) {
+    searchInput.addEventListener('input', applyFilters);
+  }
+
+  phaseButtons.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      currentPhase = btn.getAttribute('data-phase') || 'all';
+      phaseButtons.forEach(function (other) {
+        var isCurrent = other === btn;
+        other.setAttribute('aria-pressed', isCurrent ? 'true' : 'false');
+      });
+      applyFilters();
+    });
+  });
+
+  // Per-card details toggle
+  cards.forEach(function (card) {
+    var toggleBtn = card.querySelector('.pkg-toggle');
+    var detailEl = card.querySelector('.pkg-detail');
+    if (!toggleBtn || !detailEl) {
+      return;
+    }
+    toggleBtn.addEventListener('click', function () {
+      var expanded = toggleBtn.getAttribute('aria-expanded') === 'true';
+      var nextState = !expanded;
+      toggleBtn.setAttribute('aria-expanded', nextState ? 'true' : 'false');
+      toggleBtn.textContent = nextState ? 'Hide' : 'Details';
+      detailEl.hidden = !nextState;
+    });
+  });
+
+  // Expand all / Collapse all
+  if (expandAllBtn) {
+    expandAllBtn.addEventListener('click', function () {
+      allExpanded = !allExpanded;
+      expandAllBtn.setAttribute('aria-expanded', allExpanded ? 'true' : 'false');
+      expandAllBtn.textContent = allExpanded
+        ? 'Collapse all details'
+        : 'Expand all details';
+
+      cards.forEach(function (card) {
+        var toggleBtn = card.querySelector('.pkg-toggle');
+        var detailEl = card.querySelector('.pkg-detail');
+        if (toggleBtn && detailEl) {
+          toggleBtn.setAttribute('aria-expanded', allExpanded ? 'true' : 'false');
+          toggleBtn.textContent = allExpanded ? 'Hide' : 'Details';
+          detailEl.hidden = !allExpanded;
+        }
+      });
+    });
+  }
+
+  // Clear / Reset filters
+  if (resetBtn) {
+    resetBtn.addEventListener('click', function () {
+      if (searchInput) {
+        searchInput.value = '';
+      }
+      currentPhase = 'all';
+      phaseButtons.forEach(function (btn) {
+        var isAll = btn.getAttribute('data-phase') === 'all';
+        btn.setAttribute('aria-pressed', isAll ? 'true' : 'false');
+      });
+      applyFilters();
+      if (searchInput) {
+        searchInput.focus();
+      }
+    });
+  }
+})();</script>
+</body></html>
