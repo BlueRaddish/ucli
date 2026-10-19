@@ -7,7 +7,8 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 IDS = {'wave', 'working', 'looking', 'paw', 'listen', 'done', 'rest', 'peek'}
-MOUTH = '\ufecc'
+FRIENDLY = {'wave', 'done'}
+MOUTH = '\u2a4a'
 MAX_BYTES = 128 * 1024
 
 
@@ -83,14 +84,15 @@ def validate(data):
                     peek_visible += 1
                 fallback = text.replace('\u0e05', ',').replace('\u1a10', '^')
             else:
-                require(text.count(MOUTH) == 1, where + ': expected exactly one U+FECC mouth')
                 require(all(char == MOUTH or 32 <= ord(char) <= 126 for char in text),
                         where + ': only the mouth and printable ASCII are permitted')
+                if identity in FRIENDLY:
+                    require(text[3] == MOUTH and text.count(MOUTH) == 1,
+                            where + ': friendly state needs one U+2A4A mouth at index 3')
+                else:
+                    require(text[3] == '_' and MOUTH not in text,
+                            where + ': focused/calm state needs underscore at index 3')
                 fallback = text.replace(MOUTH, data['ascii_mouth'])
-                candidate = text.replace(MOUTH, '\u2a4a')
-                require(len(candidate) == 8 and candidate.count('\u2a4a') == 1
-                        and all(char == '\u2a4a' or 32 <= ord(char) <= 126 for char in candidate),
-                        where + ': invalid U+2A4A preview candidate')
             # This restricted alphabet has expected width 1 per character in
             # UCLI's pinned width table. Font/bidi/physical terminal proof is separate.
             require(len(fallback) == 8 and all(32 <= ord(char) <= 126 for char in fallback),
@@ -109,20 +111,26 @@ def validate(data):
 
 def self_test(data):
     validate(data)
-    core = next(index for index, animation in enumerate(data['animations']) if animation['id'] != 'peek')
+    core = next(index for index, animation in enumerate(data['animations']) if animation['id'] in FRIENDLY)
+    focused = next(index for index, animation in enumerate(data['animations'])
+                   if animation['id'] not in FRIENDLY | {'peek'})
     peek = next(index for index, animation in enumerate(data['animations']) if animation['id'] == 'peek')
     baseline = data['animations'][core]['frames'][0]['text']
+    calm = data['animations'][focused]['frames'][0]['text']
     ordinary = next(index for index, char in enumerate(baseline) if char != MOUTH)
     def substitute(char):
         return baseline[:ordinary] + char + baseline[ordinary + 1:]
     cases = [
         (('columns',), True),
+        (('mouth',), '\ufecc'),
         (('animations', core, 'id'), data['animations'][(core + 1) % len(IDS)]['id']),
         (('animations', core, 'playback'), 'repeat'),
         (('animations', core, 'static_frame'), True),
         (('animations', core, 'static_frame'), len(data['animations'][core]['frames'])),
         (('animations', core, 'frames', 0, 'text'), baseline[:-1]),
         (('animations', core, 'frames', 0, 'text'), baseline.replace(MOUTH, '_')),
+        (('animations', core, 'frames', 0, 'text'), baseline.replace(MOUTH, '\ufecc')),
+        (('animations', core, 'frames', 0, 'text'), baseline[:2] + MOUTH + baseline[2] + baseline[4:]),
         (('animations', core, 'frames', 0, 'text'), substitute(MOUTH)),
         (('animations', core, 'frames', 0, 'text'), substitute('\u202e')),
         (('animations', core, 'frames', 0, 'text'), substitute('\u200b')),
@@ -131,6 +139,8 @@ def self_test(data):
         (('animations', core, 'frames', 0, 'ms'), True),
         (('animations', core, 'frames', 0, 'ms'), 119),
         (('animations', core, 'frames', 0, 'ms'), 2001),
+        (('animations', focused, 'frames', 0, 'text'), calm[:3] + MOUTH + calm[4:]),
+        (('animations', focused, 'frames', 0, 'text'), calm[:3] + ' ' + calm[4:]),
         (('animations', peek, 'playback'), 'loop'),
         (('animations', peek, 'frames', 0, 'text'), '__\u1a10__   '),
         (('animations', peek, 'frames', 1, 'text'), '_____   '),
@@ -185,7 +195,7 @@ def main():
     except (OSError, ValueError) as error:
         print('FAIL: ' + str(error), file=sys.stderr)
         return 1
-    print(f'PASS: {len(IDS)} animations, {frames} frames, eight expected cells, ASCII fallbacks and U+2A4A candidates')
+    print(f'PASS: {len(IDS)} animations, {frames} frames, eight expected cells, unified state mouths and ASCII fallbacks')
     print('Scope: offline catalog only; font coverage, bidi and actual terminal rendering remain unverified')
     return 0
 
