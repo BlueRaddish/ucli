@@ -1,9 +1,15 @@
 {
-  "asset": "ucli-cat.png",
-  "purpose": "UCLI cat logo for README and project identity",
+  "asset": "ucli-loaf.png",
+  "name": "Loaf",
+  "purpose": "Selected UCLI cat logo for README and project identity",
   "generator": "built-in image_gen",
+  "concept_author": "Codex",
+  "selection": "Owner preferred Loaf from the reviewed options on2026-10-19",
   "transparent_background": true,
-  "dimensions": [1254, 1254],
-  "sha256": "051fdfcdf5a06cd7bbf60fbfa848f62dfac00c09c0cf6df1729299cd687abd5a",
-  "prompt": "Create a single polished logo icon for UCLI, a comfortable universal command-line app for AI agents. A clever friendly cat is the entire mark: compact geometric cat head, crisp pointed ears, a subtly U-shaped face/jaw, alert but relaxed eyes, a small terminal prompt chevron incorporated naturally as one eye or a whisker, without looking like pasted symbols. Distinctive, memorable, approachable developer-tool identity, simple strong silhouette readable at 24px. Flat vector-like graphic, solid warm coral-red main shape and a minimal pale cream facial cutout, small golden-yellow detail only if essential; sufficient dark edge contrast to work on both white and near-black backgrounds. No letters, no wordmark, no text, no badge container, no gradients, no shadows, no 3D, no background. Centered large icon with modest transparent padding. Deliver one finished logo, genuinely transparent background."
+  "dimensions": [
+    1536,
+    1024
+  ],
+  "sha256": "55fae70069b6f451347dd2a53dd8ce4a8d5737042d603639be696a3bb7c0e82a",
+  "prompt": "Use case: logo-brand. Create one fresh finished cat logo for UCLI, a comfortable universal command-line tool for AI agents. Design direction: LOAF, a relaxed sleepy black cat seen in side/three-quarter view lying low with paws tucked under its body, long tail curling gently beside it. The whole-cat silhouette, distinctive pointed ears, a tiny cream snout, and two simple relaxed closed eyes make it recognizably feline at a glance. Understated, cozy, playful indie developer identity. Elegant soft organic curves, not a geometric shield or symmetrical generic head. One or two flat solid colors: almost-black inky plum and warm off-white for essential facial details. The silhouette must remain recognizable as a favicon at 24px. Flat crisp professional illustration that is vector-friendly, substantial clean shapes, visually balanced, no outlines around a badge, no terminal symbols, no chevrons, no letters, no laptop, no text, no gradients, no 3D, no shadows, no orange/coral cat-head treatment. Show exactly one large centered cat mark with generous transparent padding, no presentation board. Genuinely transparent background."
 }
