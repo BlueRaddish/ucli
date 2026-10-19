@@ -65,6 +65,8 @@ They do not change the installed application's defaults.
 python tools/check_plan.py --self-test
 python tools/check_plan.py
 python tools/check_overview.py
+python tools/check_cat_animations.py --self-test
+python tools/check_cat_animations.py
 python spikes/experience/check.py --receipt .build/checks/experience
 python spikes/accounts/check.py --receipt .build/checks/accounts
 python spikes/codex/check.py --receipt .build/checks/codex.json
@@ -75,6 +77,11 @@ Planning checks validate the package graph, generated index, Markdown links and
 overview data. They do not validate the architecture or render the interface.
 After changing `planning/backlog.json`, regenerate its readable index with
 `python tools/check_plan.py --render`. Each spike README describes its boundary.
+
+The cat catalog checks validate the design frames, timing bounds, declared cell
+budget, static poses and ASCII fallback data, including malformed-input controls.
+They do not render glyphs or establish terminal font, text-direction or animation
+behavior. See [the mascot design](cat-mascot.md) before runtime integration.
 
 ## Packaged interaction and storage
 
