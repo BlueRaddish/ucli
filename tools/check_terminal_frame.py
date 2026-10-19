@@ -46,11 +46,29 @@ def inspect(capture):
 
 
 def self_test():
-    raw = '\x1b[2J\x1b[HHEADER\x1b[22;1H[Error]\x1b[23;1H> kept\x1b[24;1HHints'
+    # The synthetic full frame exercises the same notice/rule/editor/footer
+    # geometry as packaged checks. It validates the emulator, not the product.
+    expected = {0: 'UCLI version', 1: 'read-only | effort auto | account auto',
+                2: '\u2500' * 79, 18: '[Error] fixture', 19: '\u2500' * 79,
+                20: '> kept', 21: '\u2500' * 79,
+                22: 'Model auto | /work/framed-shell-workspace', 23: 'Tab actions'}
+    raw = '\x1b[2J' + ''.join(f'\x1b[{row+1};1H{text}' for row, text in expected.items())
+
+    def matches(frame):
+        return ((frame['width'], frame['height']) == (80, 24)
+                and all(frame['rows'][row].rstrip() == text for row, text in expected.items()))
+
     result = inspect({'raw': raw})
-    assert result['rows'][0].startswith('HEADER')
-    assert result['rows'][21].startswith('[Error]') and result['rows'][22].startswith('> kept')
+    assert matches(result), 'framed composer coordinates were not reconstructed'
     assert result['foreground_colors'] == []
+    wrong_rule = inspect({'raw': raw + '\x1b[3;1H\x1b[2K' + '-' * 79})
+    assert not matches(wrong_rule), 'discontinuous rule accepted'
+    for row in expected:
+        changed = inspect({'raw': raw + f'\x1b[{row+1};1H\x1b[2K'})
+        assert not matches(changed), f'missing semantic row {row} was accepted'
+    changed = inspect({'raw': raw + '\x1b[21;3Hmore'})
+    assert changed['rows'][20].startswith('> more')
+    assert changed['rows'][18].startswith('[Error]') and changed['rows'][22].startswith('Model auto')
     result = inspect({'raw': raw + '\x1b[H\x1b[31mRED\x1b[m'})
     assert 'red' in result['foreground_colors']
     result = inspect({'raw': raw + '\x1b[2J\x1b[Hsmall',
@@ -64,7 +82,7 @@ def self_test():
         except ValueError:
             continue
         raise AssertionError('invalid boundary accepted')
-    print('frame clear/cursor/notice/resize/color checks and invalid-boundary controls passed')
+    print('framed composer/footer, differential redraw, semantic-row negatives, resize/color and invalid-boundary controls passed')
 
 
 def main():
