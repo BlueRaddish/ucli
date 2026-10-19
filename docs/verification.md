@@ -6,20 +6,34 @@ human workflow. Keep failed and skipped checks visible in a pull request.
 
 ## Fixed terminal shell — October 19
 
-The shared rich shell uses a fixed version/location/model header, a bounded
-scrolling transcript, and a bottom composer with its notice immediately above
-the editor. Menus occupy the body while keeping the current composition visible.
-`--no-color` and `NO_COLOR` retain rich keyboard navigation; `--plain` selects
-the static line interface. The cat logo is a documentation asset, not a binary
-startup dependency.
+The shared rich shell has a static brand/version row, a permission/effort/account
+context row and a continuous rule. A bounded transcript sits above the framed
+composer. Its status is immediately above the upper rule; requested model and a
+tail-preserved location sit below the lower rule, followed by key hints. At 80x24,
+status/editor/footer/hints occupy zero-based rows 18/20/22/23. At 60x20 they occupy
+14/16/18/19. Multiline input grows upward without moving the final editor row or
+footer. Menus retain visible composition and replace the editing hint with an
+explicit draft-kept hint. Standalone panels show their own title/location and
+controls, without a fake model or editable prompt. Small heights drop decoration
+before status and input.
+
+`--no-color` and `NO_COLOR` retain rich navigation. `--no-motion` makes the embedded
+catalog static; `--ascii` changes only cat artwork. `--plain` selects the static
+line interface. The notice cat follows actual operation hooks and yields to
+errors, warnings and long status text. Catalog loading is local and lazy; no
+startup asset download is involved.
 
 Run the existing `tools/dev.py all` route below after freezing Go and tooling
 sources. Its normal unit checks cover shell geometry, semantic colors, Unicode,
-scroll routing, hostile output and bounded shutdown. Packaged Windows ConPTY
+scroll routing, hostile output, bounded shutdown and mascot lifecycle/stale-tick
+behavior. Packaged Windows ConPTY
 checks require the exact just-built executable; set `UCLI_CONPTY_BINARY` and
 `UCLI_CONPTY_EVIDENCE` before the existing `TestPackagedConPTY` route. Set
 `UCLI_TERMINAL_QA_DEPS` to an isolated existing pyte 0.8.2 installation for
-`TestPackagedConPTYFixedShell` screen-coordinate assertions; optionally select
+`TestPackagedConPTYFixedShell` screen-coordinate assertions; these check actual
+header/rules/status/editor/footer/hints, multiline expansion, overlay return,
+resize, monochrome navigation and a static ASCII welcome. Negative controls
+reject moved or missing semantic rows and incorrect colors. Optionally select
 Python with `UCLI_TERMINAL_QA_PYTHON`. Check the QA helper first with
 `python tools/check_terminal_frame.py --deps PATH --self-test`. These checks use
 an isolated virtual console and synthetic/demo data, with no desktop input or
@@ -81,7 +95,9 @@ After changing `planning/backlog.json`, regenerate its readable index with
 The cat catalog checks validate the design frames, timing bounds, declared cell
 budget, static poses and ASCII fallback data, including malformed-input controls.
 They do not render glyphs or establish terminal font, text-direction or animation
-behavior. See [the mascot design](cat-mascot.md) before runtime integration.
+behavior. The embedded catalog and rich-terminal lifecycle tests are separate
+from these asset checks. See [the mascot runtime scope](cat-mascot.md); neither
+unit coverage nor a cross-build establishes physical terminal compatibility.
 
 ## Packaged interaction and storage
 

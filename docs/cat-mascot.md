@@ -1,28 +1,30 @@
-# Cat mascot design kit
+# Cat mascot runtime and design kit
 
-UCLI's cat gives the terminal a small, recognizable companion without asking people to learn another interface. It follows the same priorities as the CLI: make actions discoverable, preserve drafts and context, and show what is actually happening. This is an animation design kit and runtime proposal. The reusable catalog specifies frame order and timing; application integration is proposed below.
+UCLI's cat gives the terminal a small, recognizable companion without asking people to learn another interface. It follows the same priorities as the CLI: make actions discoverable, preserve drafts and context, and show what is actually happening. The rich terminal now embeds the reusable frame catalog. Lifecycle hooks select a sequence without downloading assets or changing task state; further placements remain design proposals.
 
 The main cat has one face and two expressions. `(^.⩊.^)/` is friendly and expressive for greetings and saved-result celebrations. `(^._.^) ` is neutral, focused, or serious for work, search, preparation, voice attention, and rest. A sequence keeps its mouth constant while its eyes or paw animate; a real state change chooses the next expression. The [animation catalog](../assets/mascot/cat-animations.json) defines eight sequences, each with an eight-column layout budget, including padding. The [catalog checker](../tools/check_cat_animations.py) checks the assets. A moving cat accompanies a status label; it never establishes that an operation started, succeeded, or stopped.
 
-| Sequence | Valid trigger and placement | Playback and settled state |
+| Sequence | Current runtime trigger | Playback and settled state |
 | --- | --- | --- |
-| Hello (`wave`) | Welcome or resume, in the notice slot | One bounded wave, then static |
-| Working (`working`) | Actual agent activity | Loop only while that operation is busy |
-| Looking (`looking`) | Current search or routing operation | Loop until that generation finishes or is canceled |
-| Paw tap (`paw`) | Real handoff, preparation, or task activity | Loop while the activity exists; never imply unimplemented execution |
-| Attentive (`listen`) | Voice preparation | Loop during preparation; actual Recording uses a static attentive cat with its real status and stop control |
-| Done (`done`) | A completed result has been durably persisted | One celebration, then the calm happy frame `(^~⩊~^) ` at `static_frame: 3` |
-| Rest (`rest`) | Idle or empty views | Settle once into rest; a paused interface stays static |
-| Table peek (`peek`) | Optional empty-view or explicit help/about easter egg | One bounded peek above a table, then its settled pose |
+| Hello (`wave`) | Interactive welcome or restored session | One bounded wave, then static |
+| Working (`working`) | An actual `App.Run` call or voice transcription | Loop while the operation is active |
+| Looking (`looking`) | Native sign-in checking and waiting | Loop until that operation ends; task search/routing is not connected in this slice |
+| Paw tap (`paw`) | Voice preparation | Loop during preparation |
+| Attentive (`listen`) | Active voice recording | Static cat alongside the real Recording label and stop control |
+| Done (`done`) | `App.Run` returns a durably completed result without warnings | One celebration, then the happy static frame at `static_frame: 3` |
+| Rest (`rest`) | Catalog available; no idle runtime hook in this slice | Bounded settling sequence, then static |
+| Table peek (`peek`) | Offline workflow inspection | Static pose with an explicit no-task-started notice |
 
-The first proposed home is the single notice row immediately above the fixed composer. Keep the header static and allow at most one actively animated cat across the interface. A focused task or workflow may own that indicator; background rows should not each animate. Empty history and workflow views normally use calm static rest. A longer easter egg belongs behind an explicit help/about action, with a bounded ending.
+The runtime uses the single status row above the framed composer. The header cat stays static; at most one notice cat animates. Errors and warnings stop that animation and keep their full text priority. At constrained widths, the cat is omitted before shortening status or recovery information. Background rows do not animate independently. Animated empty-state and explicit help/about easter eggs remain proposals.
 
-Real percentages, counts, reset timers, errors, permission scope, authentication text, and stop controls take priority over decoration. Animation must not overwrite a draft, move keyboard focus, shift the fixed layout, or delay an action until its last frame. Pausing motion leaves a static pose.
+The standard 80-by-24 composition puts status on row 18, a rule on row 19, the editor on row 20, another rule on row 21, requested model and location on row 22, and key hints on row 23 (zero-based). Multiline composition expands upward; the final editor row and footer remain fixed. Standalone voice, sign-in and workflow panels show their own title and location without pretending to have a model selection or editable composer.
 
-Bind motion to operation lifecycles, not screen text. In particular, `composer_terminal.go` currently paints “Working” after any Enter, including draft and menu actions; that label cannot drive a busy animation. Search indicators must follow the current generation. Voice preparation, recording, capture stopped, and transcription remain distinct stages, with explicit labels throughout.
+Real percentages, counts, reset timers, errors, permission scope, authentication text, and stop controls take priority over decoration. Animation does not establish that an operation started, succeeded, or stopped. It does not overwrite a draft, move keyboard focus, or delay an action until its last frame. Lifecycle hooks drive activity directly; submitting a menu command or saving a draft does not itself start the working sequence. Superseded ticks cannot restart an older operation. Voice preparation, recording and transcription remain distinct stages.
 
 The friendly mouth is U+2A4A, UNION BESIDE AND JOINED WITH UNION; the focused mouth is ASCII `_`. These are two expressions of the same main cat. Table peek retains the separate tiny `ᨐ` and `ฅ` motif as an occasional Easter egg. Keep directional controls out of all frames. Unicode properties do not establish font coverage or actual terminal compatibility.
 
-Provide off, static, reduced-motion, and ASCII fallbacks. The core seven replace the mouth with `_`; Table peek maps `ฅ` to a comma and `ᨐ` to `^`. Plain and JSON output stay stable and non-animated. Do not weaken `safe()` sanitization for the mascot. Next, verify lifecycle transitions and cancellation alongside frame durations, then test fonts, bidi behavior, cell widths, and fixed coordinates on actual Windows, macOS, and Linux terminals. A browser preview demonstrates composition, not physical-terminal behavior or human usability.
+Use `--no-motion` for static poses while retaining rich navigation, and `--ascii` for ASCII cat artwork. `--no-color` and `NO_COLOR` affect color, not motion. There is no automatic operating-system reduced-motion detection or separate mascot-off flag in this slice. Plain and JSON output remain non-animated. ASCII mode maps the core mouth to `_`, Table peek's `ฅ` to a comma, and `ᨐ` to `^`; other interface symbols are unchanged. The mascot does not weaken `safe()` sanitization.
+
+Catalog and runtime unit checks cover frame timing, static poses, stale ticks, cancellation, warning/error priority and explicit motion/ASCII controls. Packaged Windows checks reconstruct captured terminal frames and verify fixed positions, preserved composition and an ASCII static welcome. Follow the verification route for the current build's actual results; a test definition is not an executed pass. Physical font coverage, bidi behavior, accessibility and motion on macOS/Linux terminals remain unverified. Browser previews and ANSI emulation do not establish physical-terminal rendering or human usability.
 
 Verify the catalog with `python tools/check_cat_animations.py --self-test` and follow [the project verification route](verification.md) when integrating it. The visual references are the [one-line animal archive](https://www.asciiart.eu/one-line/animals), [cat-paw collection](https://www.kaomojiya.org/en/cat-paw-kaomoji), and Unicode's [mathematical operators](https://www.unicode.org/charts/PDF/U2A00.pdf).
