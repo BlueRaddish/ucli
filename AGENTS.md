@@ -9,6 +9,11 @@ Read the affected module's README, the relevant shared contract and
 API, state-format, permission and account-binding changes before modifying their
 consumers. Reuse the existing standard-library test and verification tools.
 
+Keep commits small and focused on one coherent change. Commit completed,
+verified steps as development proceeds; do not collapse a development session
+into a single delivery snapshot. Keep private history and evidence out of public
+commits, and report any required history sanitization explicitly.
+
 Preserve independent account/model/effort pins, durable command replay and unknown
 outcome guards. A child process is not an OS sandbox. A timeout or local process
 exit does not prove remote cancellation. Never widen permission or weaken an
