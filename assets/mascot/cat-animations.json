@@ -1,0 +1,118 @@
+{
+  "schema_version": 1,
+  "columns": 8,
+  "mouth": "ﻌ",
+  "ascii_mouth": "_",
+  "animations": [
+    {
+      "id": "wave",
+      "name": "Hello",
+      "playback": "once",
+      "static_frame": 0,
+      "placement": "Welcome / resume",
+      "frames": [
+        {"text": "(^.ﻌ.^) ", "ms": 280},
+        {"text": "(^.ﻌ.^)/", "ms": 180},
+        {"text": "(^.ﻌ.^)|", "ms": 160},
+        {"text": "(^.ﻌ.^)\\", "ms": 180},
+        {"text": "(^.ﻌ.^)|", "ms": 160},
+        {"text": "(^.ﻌ.^)/", "ms": 220},
+        {"text": "(^.ﻌ.^) ", "ms": 600}
+      ]
+    },
+    {
+      "id": "working",
+      "name": "Working",
+      "playback": "loop",
+      "static_frame": 0,
+      "placement": "Agent activity",
+      "frames": [
+        {"text": "(^.ﻌ.^) ", "ms": 900},
+        {"text": "(^-ﻌ-^) ", "ms": 180},
+        {"text": "(^.ﻌ.^) ", "ms": 600},
+        {"text": "(^;ﻌ.^) ", "ms": 220},
+        {"text": "(^.ﻌ.^) ", "ms": 700}
+      ]
+    },
+    {
+      "id": "looking",
+      "name": "Looking",
+      "playback": "loop",
+      "static_frame": 0,
+      "placement": "Searching / routing",
+      "frames": [
+        {"text": "(^.ﻌ.^) ", "ms": 500},
+        {"text": "(^<ﻌ<^) ", "ms": 360},
+        {"text": "(^.ﻌ.^) ", "ms": 240},
+        {"text": "(^>ﻌ>^) ", "ms": 360},
+        {"text": "(^.ﻌ.^) ", "ms": 500}
+      ]
+    },
+    {
+      "id": "paw",
+      "name": "Paw tap",
+      "playback": "loop",
+      "static_frame": 0,
+      "placement": "Handoff / preparation",
+      "frames": [
+        {"text": "(^.ﻌ.^)_", "ms": 320},
+        {"text": "(^.ﻌ.^)-", "ms": 180},
+        {"text": "(^.ﻌ.^)|", "ms": 220},
+        {"text": "(^.ﻌ.^)-", "ms": 180}
+      ]
+    },
+    {
+      "id": "listen",
+      "name": "Attentive",
+      "playback": "loop",
+      "static_frame": 0,
+      "placement": "Voice preparation",
+      "frames": [
+        {"text": "(^oﻌo^) ", "ms": 800},
+        {"text": "(^OﻌO^) ", "ms": 200},
+        {"text": "(^oﻌo^) ", "ms": 800},
+        {"text": "(^-ﻌ-^) ", "ms": 160}
+      ]
+    },
+    {
+      "id": "done",
+      "name": "Done",
+      "playback": "once",
+      "static_frame": 3,
+      "placement": "Result saved",
+      "frames": [
+        {"text": "(^>ﻌ<^)/", "ms": 260},
+        {"text": "(^>ﻌ<^)|", "ms": 180},
+        {"text": "(^~ﻌ~^)/", "ms": 400},
+        {"text": "(^~ﻌ~^) ", "ms": 800}
+      ]
+    },
+    {
+      "id": "rest",
+      "name": "Rest",
+      "playback": "once",
+      "static_frame": 0,
+      "placement": "Idle / empty view",
+      "frames": [
+        {"text": "(^-ﻌ-^) ", "ms": 400},
+        {"text": "(^-ﻌ-^)z", "ms": 400},
+        {"text": "(^-ﻌ-^)Z", "ms": 800},
+        {"text": "(^-ﻌ-^) ", "ms": 1000}
+      ]
+    },
+    {
+      "id": "peek",
+      "name": "Table peek",
+      "playback": "once",
+      "static_frame": 2,
+      "placement": "Empty view / Easter egg",
+      "frames": [
+        {"text": "_____   ", "ms": 350},
+        {"text": "__ᨐ__   ", "ms": 500},
+        {"text": "_ฅᨐฅ_   ", "ms": 450},
+        {"text": "_ฅᨐ ฅ_  ", "ms": 450},
+        {"text": "_ฅᨐฅ_   ", "ms": 800}
+      ]
+    }
+  ]
+}
