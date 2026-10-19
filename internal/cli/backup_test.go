@@ -64,17 +64,12 @@ func TestBackupSnapshotIncludesLiveWALAndReopensForInspectionAndReplay(t *testin
 		t.Fatalf("fixture needs a real nonempty WAL: %v %v", info, err)
 	}
 	destination := filepath.Join(t.TempDir(), "snapshot #%.sqlite")
-	current, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	relative, err := filepath.Rel(current, destination)
-	if err != nil {
-		t.Fatal(err)
-	}
+	// Keep the relative-path fixture on one volume: hosted Windows checkouts
+	// and temporary directories can live on different drives.
+	t.Chdir(filepath.Dir(destination))
 	var out, diagnostic bytes.Buffer
 	stdin := &unreadBackupInput{}
-	code := Run(ctx, []string{"backup", relative, "--home", home, "--json", "--no-input"}, stdin, &out, &diagnostic)
+	code := Run(ctx, []string{"backup", filepath.Base(destination), "--home", home, "--json", "--no-input"}, stdin, &out, &diagnostic)
 	items := jsonLines(t, out.String())
 	var receipt state.BackupReceipt
 	if code != 0 || diagnostic.Len() != 0 || stdin.reads != 0 || len(items) != 1 || items[0].Type != "backup" || json.Unmarshal(items[0].Data, &receipt) != nil {
@@ -85,7 +80,11 @@ func TestBackupSnapshotIncludesLiveWALAndReopensForInspectionAndReplay(t *testin
 		t.Fatal(err)
 	}
 	hash := sha256.Sum256(raw)
-	if receipt.Version != 1 || receipt.Schema != 1 || receipt.Path != destination || receipt.SHA256 != hex.EncodeToString(hash[:]) || receipt.Bytes != int64(len(raw)) || receipt.CreatedAt.IsZero() || receipt.Tasks != 2 || receipt.Attempts != 2 || receipt.Events != int64(len(completeEvents)+len(uncertainEvents)) || receipt.UnsettledAttempts != 1 {
+	physical, err := filepath.EvalSymlinks(destination)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if receipt.Version != 1 || receipt.Schema != 1 || receipt.Path != physical || receipt.SHA256 != hex.EncodeToString(hash[:]) || receipt.Bytes != int64(len(raw)) || receipt.CreatedAt.IsZero() || receipt.Tasks != 2 || receipt.Attempts != 2 || receipt.Events != int64(len(completeEvents)+len(uncertainEvents)) || receipt.UnsettledAttempts != 1 {
 		t.Fatalf("receipt does not identify the snapshot: %+v", receipt)
 	}
 	for _, suffix := range []string{"-wal", "-shm", "-journal"} {

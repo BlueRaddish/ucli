@@ -37,7 +37,11 @@ func TestMigrationCommandPreservesTasksAndExplicitSchema(t *testing.T) {
 	if code != 0 || diagnostic.Len() != 0 || input.reads != 0 || len(items) != 1 || items[0].Type != "migration" || json.Unmarshal(items[0].Data, &receipt) != nil {
 		t.Fatalf("migration reply: %d %s %s reads%d", code, out.String(), diagnostic.String(), input.reads)
 	}
-	if receipt.Status != "applied" || receipt.FromSchema != 1 || receipt.ToSchema != 2 || receipt.Backup.Path != backup || receipt.Backup.Schema != 1 || receipt.ReceiptPath != backup+".receipt.json" {
+	physical, err := filepath.EvalSymlinks(backup)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if receipt.Status != "applied" || receipt.FromSchema != 1 || receipt.ToSchema != 2 || receipt.Backup.Path != physical || receipt.Backup.Schema != 1 || receipt.ReceiptPath != physical+".receipt.json" {
 		t.Fatalf("inaccurate receipt: %+v", receipt)
 	}
 	original, err := os.ReadFile(backup)

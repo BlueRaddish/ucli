@@ -61,7 +61,11 @@ func TestBackupIncludesWALIntentEvidenceAndUnknownFence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if receipt.Path != destination || receipt.Version != 1 || receipt.Schema != 1 || receipt.Tasks != 1 || receipt.Attempts != 1 || receipt.Events != int64(len(wantEvents)) || receipt.UnsettledAttempts != 1 || receipt.CreatedAt.IsZero() || len(receipt.Warnings) != 0 {
+	physical, err := filepath.EvalSymlinks(destination)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if receipt.Path != physical || receipt.Version != 1 || receipt.Schema != 1 || receipt.Tasks != 1 || receipt.Attempts != 1 || receipt.Events != int64(len(wantEvents)) || receipt.UnsettledAttempts != 1 || receipt.CreatedAt.IsZero() || len(receipt.Warnings) != 0 {
 		t.Fatalf("receipt=%+v", receipt)
 	}
 	raw, err := os.ReadFile(destination)

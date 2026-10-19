@@ -67,8 +67,12 @@ func TestPhysicalAliasesSubdirectoryAndLinkedWorktree(t *testing.T) {
 
 func TestPlainDirectoryAndInvalidPaths(t *testing.T) {
 	dir := t.TempDir()
+	physical, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
 	w, err := Resolve(dir)
-	if err != nil || w.Dir != dir || w.Root != dir || w.ID == "" {
+	if err != nil || w.Dir != dir || w.Root != physical || w.ID == "" {
 		t.Fatalf("plain directory: %+v %v", w, err)
 	}
 	file := filepath.Join(dir, "file")
