@@ -135,7 +135,7 @@ type session struct {
 func interact(ctx context.Context, a *app.App, p invocation, in io.Reader, o *output) int {
 	s := &session{app: a, selection: p.selection.WithDefaults(), cwd: p.cwd, demo: p.demo, out: o}
 	if isTerminal(in) && isTerminal(o.out) && !p.set["plain"] && os.Getenv("TERM") != "dumb" {
-		s.terminal = newTerminalUI(in, o.out, o.cancel, !p.set["no-color"] && os.Getenv("NO_COLOR") == "")
+		s.terminal = newTerminalUI(in, o.out, o.cancel, !p.set["no-color"] && os.Getenv("NO_COLOR") == "", terminalOptionsFor(p))
 		o.terminal = s.terminal
 		o.out, o.errOut = s.terminal.writer, s.terminal.writer
 		s.input = &lineInput{read: s.readTerminalLine}
@@ -194,6 +194,10 @@ func interact(ctx context.Context, a *app.App, p invocation, in io.Reader, o *ou
 			_ = o.notice("Draft restored | /send submits it", toneInfo)
 		}
 	}
+	if s.task == nil || s.task.Draft == "" {
+		_ = o.notice("Ready | Enter saves a draft; /send submits it", toneInfo)
+	}
+	_ = o.activity("wave", false)
 	for {
 		s.status()
 		answer := s.input.next(ctx)

@@ -22,6 +22,8 @@ var flags = []flagSpec{
 	{"no-input", "", "", "disable interactive prompts"},
 	{"plain", "", "", "use static text without color"},
 	{"no-color", "", "", "disable color; keep terminal keyboard navigation"},
+	{"no-motion", "", "", "keep terminal cats static; retain keyboard navigation"},
+	{"ascii", "", "", "use ASCII cat artwork in the rich terminal"},
 	{"model", "", "MODEL", "choose a model (new task default: auto)"},
 	{"effort", "", "EFFORT", "choose auto|low|medium|high|max (new task: auto)"},
 	{"account", "", "ACCOUNT", "choose an authorized account (new task: auto)"},

@@ -56,9 +56,9 @@ func connectionCommand(ctx context.Context, p invocation, in io.Reader, o *outpu
 		return 0
 	}
 	if p.command == "login" && !p.noInput && !p.json && isTerminal(in) && isTerminal(o.out) && !p.set["plain"] && os.Getenv("TERM") != "dumb" {
-		o.terminal = newTerminalUI(in, o.out, o.cancel, !p.set["no-color"] && os.Getenv("NO_COLOR") == "")
+		o.terminal = newTerminalUI(in, o.out, o.cancel, !p.set["no-color"] && os.Getenv("NO_COLOR") == "", terminalOptionsFor(p))
 		location, _ := os.Getwd()
-		if err := o.terminal.setChrome(terminalChrome{Version: Version, Location: location, Model: "Native sign-in", Context: "No task is submitted"}); err != nil {
+		if err := o.terminal.setChrome(terminalChrome{Version: Version, Location: location, Model: "Native sign-in", Context: "No task is submitted", Panel: true}); err != nil {
 			return o.problem(err)
 		}
 		if err := o.terminal.paintComposer(terminalFrame{Lines: []terminalLine{{Text: "Sign-in · Esc back · Ctrl+C cancel", Dim: true}}, CursorRow: -1}); err != nil {
@@ -282,6 +282,9 @@ type loginOutcome struct {
 }
 
 func performLoginOperation(ctx context.Context, operation func(context.Context, func(connections.LoginEvent) error) (connections.Connection, error), o *output, terminal taskPickerTerminal) (connections.Connection, error) {
+	_ = o.notice("Checking native sign-in | no AI task submitted", toneInfo)
+	_ = o.activity("looking", false)
+	defer o.activity("", true)
 	jobCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	events := make(chan connections.LoginEvent, 16)
@@ -331,6 +334,9 @@ func performLoginOperation(ctx context.Context, operation func(context.Context, 
 				return result.connection, result.err
 			case event := <-events:
 				state = mergeLoginEvent(state, event)
+				if terminal != nil {
+					_ = o.notice(state.Message, toneInfo)
+				}
 				if terminal == nil {
 					var writeErr error
 					if o.json {

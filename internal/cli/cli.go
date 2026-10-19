@@ -243,6 +243,14 @@ func runTask(ctx context.Context, a *app.App, opt app.Options, o *output) (core.
 		}
 	}
 	var hadText, hadWarning atomic.Bool
+	_ = o.notice("Preparing task | Ctrl+C interrupts", toneInfo)
+	_ = o.activity("working", false)
+	completed := false
+	defer func() {
+		if !completed {
+			_ = o.activity("", true)
+		}
+	}()
 	attempt, err := a.Run(ctx, opt, func(event core.Event) error {
 		if event.Type == "message_delta" && event.Text != "" {
 			hadText.Store(true)
@@ -282,6 +290,10 @@ func runTask(ctx context.Context, a *app.App, opt app.Options, o *output) (core.
 		_ = o.progress(fmt.Sprintf("Task %s | revision %d | %s (saved)\n", attempt.TaskID, attempt.Revision, attempt.State))
 		showRoute(attempt.Effective, o)
 		_ = o.notice("Complete | result saved | enter a follow-up or choose /new", toneSuccess)
+		if attempt.State == "complete" && !hadWarning.Load() && len(attempt.Warnings) == 0 {
+			_ = o.activity("done", false)
+			completed = true
+		}
 	}
 	return attempt, nil
 }

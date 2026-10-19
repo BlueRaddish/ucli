@@ -74,6 +74,7 @@ type terminalUI struct {
 	queuedBytes   atomic.Int64
 	liveFragment  atomic.Bool
 	shellEnabled  atomic.Bool
+	panelSurface  atomic.Bool
 	composerRows  atomic.Int64
 	mu            sync.Mutex
 	err           error
@@ -92,6 +93,8 @@ type terminalModel struct {
 	color    bool
 	shell    terminalShell
 	theme    terminalTheme
+	options  terminalOptions
+	mascot   terminalMascot
 }
 
 func (m terminalModel) Init() tea.Cmd {
@@ -105,6 +108,14 @@ func (m terminalModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var event keyEvent
 	emit := false
 	switch value := msg.(type) {
+	case terminalActivityMsg:
+		command := m.startMascot(value, time.Now())
+		return m, command
+	case mascotTickMsg:
+		if value.Generation == m.mascot.generation {
+			command := m.advanceMascot(value.At)
+			return m, command
+		}
 	case tea.BackgroundColorMsg:
 		if value.Color != nil {
 			m.theme = themeLight
@@ -113,6 +124,8 @@ func (m terminalModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 	case terminalExitMsg:
+		m.stopMascot()
+		m.mascot.closed = true
 		if m.shell.enabled {
 			var final []string
 			for _, text := range m.shell.transcript[max(0, len(m.shell.transcript)-2):] {
@@ -144,6 +157,9 @@ func (m terminalModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.frame = terminalFrame(value)
 		}
 	case terminalNoticeMsg:
+		if value.Kind == toneError || value.Kind == toneWarning || m.mascot.id == "wave" || m.mascot.id == "done" {
+			m.stopMascot()
+		}
 		if terminalNotice(value) != m.shell.notice && (value.Kind == toneError || value.Kind == toneWarning) {
 			text := noticeLine(terminalNotice(value)).Text
 			// Progress errors already write their full diagnostic to the transcript.
@@ -199,7 +215,7 @@ func (m terminalModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyPressMsg:
 		event, emit = terminalKey(value)
 		if m.shell.enabled && m.shell.composerFocus && (event.kind == keyPageUp || event.kind == keyPageDown) {
-			step := max(1, terminalShellBudget(int(m.ui.height.Load()), len(m.shell.composer.Lines)).body-1)
+			step := max(1, terminalShellBudget(int(m.ui.height.Load()), len(m.shell.composer.Lines), m.shell.chrome.Panel).body-1)
 			maximum := max(0, len(m.shell.historyLines(m.fragment, int(m.ui.width.Load())))-step)
 			m.shell.scroll = min(m.shell.scroll, maximum)
 			if event.kind == keyPageUp {
@@ -212,6 +228,7 @@ func (m terminalModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	if emit {
 		if event.kind == keyInterrupt {
+			m.stopMascot()
 			// The outer application owns signals and execution cancellation. Keep
 			// the renderer alive long enough to flush its durable outcome message.
 			m.ui.interrupt()
@@ -297,7 +314,7 @@ func (m terminalModel) View() tea.View {
 	return view
 }
 
-func newTerminalUI(in io.Reader, out io.Writer, interrupt context.CancelFunc, color bool) *terminalUI {
+func newTerminalUI(in io.Reader, out io.Writer, interrupt context.CancelFunc, color bool, options ...terminalOptions) *terminalUI {
 	ctx, cancel := context.WithCancel(context.Background())
 	u := &terminalUI{events: make(chan keyEvent, 128), done: make(chan struct{}), cancel: cancel, interrupt: interrupt, finalOutput: out}
 	in, releaseInput := terminalTransportInput(in, u.fail)
@@ -305,7 +322,11 @@ func newTerminalUI(in io.Reader, out io.Writer, interrupt context.CancelFunc, co
 	u.width.Store(80)
 	u.height.Store(24)
 	u.writer = &terminalWriter{ui: u}
-	program := tea.NewProgram(terminalModel{ui: u, color: color, frame: terminalFrame{CursorRow: -1}}, tea.WithContext(ctx), tea.WithInput(in), tea.WithOutput(out), tea.WithoutSignalHandler(), tea.WithFPS(60))
+	var configured terminalOptions
+	if len(options) > 0 {
+		configured = options[0]
+	}
+	program := tea.NewProgram(terminalModel{ui: u, color: color, options: configured, frame: terminalFrame{CursorRow: -1}}, tea.WithContext(ctx), tea.WithInput(in), tea.WithOutput(out), tea.WithoutSignalHandler(), tea.WithFPS(60))
 	u.program = program
 	go func() {
 		_, err := program.Run()
@@ -333,7 +354,7 @@ func (u *terminalUI) failure() error { u.mu.Lock(); defer u.mu.Unlock(); return 
 func (u *terminalUI) size() (int, int) {
 	height := int(u.height.Load())
 	if u.shellEnabled.Load() {
-		return int(u.width.Load()), terminalShellBudget(height, int(u.composerRows.Load())).body
+		return int(u.width.Load()), terminalShellBudget(height, int(u.composerRows.Load()), u.panelSurface.Load()).body
 	}
 	if u.liveFragment.Load() {
 		height--

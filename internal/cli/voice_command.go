@@ -50,11 +50,11 @@ func runVoiceCommand(ctx context.Context, p invocation, in io.Reader, o *output)
 	}
 	var terminal *terminalUI
 	if !o.json && !p.noInput && !p.set["plain"] && os.Getenv("TERM") != "dumb" && isTerminal(in) && isTerminal(o.out) {
-		terminal = newTerminalUI(in, o.out, o.cancel, !p.set["no-color"] && os.Getenv("NO_COLOR") == "")
+		terminal = newTerminalUI(in, o.out, o.cancel, !p.set["no-color"] && os.Getenv("NO_COLOR") == "", terminalOptionsFor(p))
 		o.terminal = terminal
 		o.out, o.errOut = terminal.writer, terminal.writer
 		location, _ := os.Getwd()
-		if err := terminal.setChrome(terminalChrome{Version: Version, Location: location, Model: "Voice input", Context: "Transcript only | no task submitted"}); err != nil {
+		if err := terminal.setChrome(terminalChrome{Version: Version, Location: location, Model: "Voice input", Context: "Transcript only | no task submitted", Panel: true}); err != nil {
 			return o.problem(err)
 		}
 		if err := terminal.paintComposer(terminalFrame{Lines: []terminalLine{{Text: "Voice input · review before accepting · Ctrl+C cancel", Dim: true}}, CursorRow: -1}); err != nil {
@@ -192,9 +192,21 @@ func performVoice(ctx context.Context, p invocation, home string, terminal *term
 	var mu sync.Mutex
 	current := "Preparing voice"
 	recording := false
+	activityID, activityStatic := "paw", false
+	defer o.activity("", true)
 	setStatus := func(value string) {
 		mu.Lock()
 		current = value
+		mu.Unlock()
+		select {
+		case wake <- struct{}{}:
+		default:
+		}
+	}
+	setStage := func(value string, isRecording bool, id string, static bool) {
+		mu.Lock()
+		current, recording = value, isRecording
+		activityID, activityStatic = id, static
 		mu.Unlock()
 		select {
 		case wake <- struct{}{}:
@@ -206,19 +218,13 @@ func performVoice(ctx context.Context, p invocation, home string, terminal *term
 		for event := range events {
 			switch event.Type {
 			case "loading":
-				setStatus("Loading local transcription model")
+				setStage("Loading local transcription model", false, "paw", false)
 			case "recording":
-				mu.Lock()
-				recording = true
-				mu.Unlock()
-				setStatus("Recording · " + event.Device)
+				setStage("Recording · "+event.Device, true, "listen", true)
 			case "capture_stopped":
-				mu.Lock()
-				recording = false
-				mu.Unlock()
-				setStatus("Microphone stopped; preparing transcription")
+				setStage("Microphone stopped; preparing transcription", false, "working", false)
 			case "transcribing":
-				setStatus("Transcribing locally")
+				setStage("Transcribing locally", false, "working", false)
 			}
 		}
 	}()
@@ -232,7 +238,7 @@ func performVoice(ctx context.Context, p invocation, home string, terminal *term
 		result := voice.Result{}
 		if err == nil && p.command != "voice setup" {
 			if p.command == "voice transcribe" {
-				setStatus("Loading local model and transcribing audio")
+				setStage("Loading local model and transcribing audio", false, "working", false)
 				result, err = voice.Transcribe(jobCtx, cfg, p.file)
 			} else {
 				result, err = voice.Capture(jobCtx, cfg, stop, events)
@@ -259,6 +265,7 @@ func performVoice(ctx context.Context, p invocation, home string, terminal *term
 		}
 	}
 	lastStatus := ""
+	lastActivity, lastStatic := "", false
 	if terminal == nil && !o.json && p.command == "voice record" {
 		_ = o.progress(fmt.Sprintf("Timed recording: up to %d seconds; Ctrl+C cancels. Enter-stop is available in the rich terminal.\n", p.voiceDuration))
 	}
@@ -274,6 +281,7 @@ func performVoice(ctx context.Context, p invocation, home string, terminal *term
 		}
 		mu.Lock()
 		state, isRecording := current, recording
+		activity, static := activityID, activityStatic
 		mu.Unlock()
 		if terminal == nil {
 			if state != lastStatus {
@@ -290,6 +298,14 @@ func performVoice(ctx context.Context, p invocation, home string, terminal *term
 			case <-ctx.Done():
 				return join(ctx.Err())
 			}
+		}
+		if state != lastStatus {
+			_ = o.notice(state, toneInfo)
+			lastStatus = state
+		}
+		if activity != lastActivity || static != lastStatic {
+			_ = o.activity(activity, static)
+			lastActivity, lastStatic = activity, static
 		}
 		width, height := terminal.size()
 		hint := "Esc cancel · no AI task is sent"

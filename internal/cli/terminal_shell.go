@@ -21,6 +21,7 @@ const (
 
 type terminalChrome struct {
 	Version, Location, Model, Context string
+	Panel                             bool
 }
 
 type terminalNotice struct {
@@ -72,10 +73,10 @@ func (s *terminalShell) append(text string) {
 }
 
 type shellBudget struct {
-	header, body, notice, composer int
+	header, body, notice, composer, upperRule, lowerRule, metadata int
 }
 
-func terminalShellBudget(height, composerRows int) shellBudget {
+func terminalShellBudget(height, composerRows int, panel bool) shellBudget {
 	height = max(1, height)
 	b := shellBudget{}
 	// At tiny sizes, keep an actionable editor and notice instead of clipping a
@@ -88,17 +89,33 @@ func terminalShellBudget(height, composerRows int) shellBudget {
 		b.body = height - b.composer - b.notice
 		return b
 	}
-	b.header = 1
-	if height >= 8 {
+	b.notice = 1 // reserve the same row when no notice is active
+	if height >= 5 {
+		b.metadata = 1
+	}
+	if height >= 7 {
+		b.header = 1
+	}
+	if height >= 9 {
+		b.upperRule = 1
+		if !panel {
+			b.lowerRule = 1
+		}
+	}
+	if height >= 10 {
 		b.header = 2
 	}
-	if height >= 11 {
+	if height >= 14 {
 		b.header = 3
 	}
-	b.notice = 1 // reserve the same row when no notice is active
-	b.composer = min(max(2, composerRows), min(7, height-b.header-b.notice-1))
+	fixed := b.header + b.notice + b.upperRule + b.lowerRule + b.metadata
+	minimum := 2 // editor and its keyboard hint
+	if panel {
+		minimum = 1 // a panel has controls, not a pretend editable prompt
+	}
+	b.composer = min(max(minimum, composerRows), min(7, height-fixed-1))
 	b.composer = max(1, b.composer)
-	b.body = max(0, height-b.header-b.notice-b.composer)
+	b.body = max(0, height-fixed-b.composer)
 	return b
 }
 
@@ -107,6 +124,7 @@ func (u *terminalUI) setChrome(chrome terminalChrome) error {
 		return err
 	}
 	u.shellEnabled.Store(true)
+	u.panelSurface.Store(chrome.Panel)
 	u.program.Send(terminalChromeMsg(chrome))
 	return u.failure()
 }
@@ -137,7 +155,7 @@ func (u *terminalUI) composerSize() (int, int) {
 	if !u.shellEnabled.Load() {
 		return u.size()
 	}
-	budget := terminalShellBudget(height, 7)
+	budget := terminalShellBudget(height, 7, u.panelSurface.Load())
 	return width, max(1, budget.composer)
 }
 
@@ -195,22 +213,48 @@ func noticeLine(notice terminalNotice) terminalLine {
 	return terminalLine{Text: "[" + label + "] " + notice.Text, Tone: notice.Kind}
 }
 
-func (s terminalShell) header(width, rows int) []terminalLine {
+func (s terminalShell) header(cat string, width, rows int) []terminalLine {
 	if rows == 0 {
 		return nil
 	}
-	brand := "=^.^= UCLI " + s.chrome.Version
-	model := "Model " + s.chrome.Model
-	if s.chrome.Context != "" {
-		model += " · " + s.chrome.Context
+	brand := "UCLI " + s.chrome.Version
+	withCat := strings.TrimRight(cat, " ") + " " + brand
+	if cellWidth(withCat) < width {
+		brand = withCat
+	}
+	context := s.chrome.Context
+	if s.chrome.Panel {
+		context = s.chrome.Model
+		if s.chrome.Context != "" {
+			context += " · " + s.chrome.Context
+		}
 	}
 	if rows == 1 {
-		return []terminalLine{{Text: brand + " · " + s.chrome.Model, Tone: toneInfo}}
+		return []terminalLine{{Text: brand, Tone: toneInfo}}
 	}
 	if rows == 2 {
-		return []terminalLine{{Text: brand + " · " + tailCells(inlineText(s.chrome.Location), max(1, width-cellWidth(brand)-4)), Tone: toneInfo}, {Text: model}}
+		return []terminalLine{{Text: brand, Tone: toneInfo}, shellRule(width)}
 	}
-	return []terminalLine{{Text: brand, Tone: toneInfo}, {Text: "Location " + tailCells(inlineText(s.chrome.Location), max(1, width-10)), Dim: true}, {Text: model}}
+	return []terminalLine{{Text: brand, Tone: toneInfo}, {Text: context, Dim: true}, shellRule(width)}
+}
+
+func shellRule(width int) terminalLine {
+	return terminalLine{Text: strings.Repeat("─", max(1, width-1)), Dim: true}
+}
+
+func (s terminalShell) metadata(width int) terminalLine {
+	limit := max(1, width-1)
+	location := inlineText(s.chrome.Location)
+	if s.chrome.Panel {
+		prefix := "Location "
+		return terminalLine{Text: prefix + tailCells(location, max(1, limit-cellWidth(prefix))), Dim: true}
+	}
+	model := "Model " + inlineText(s.chrome.Model)
+	// Reserve useful path suffixes before a long provider/model identifier.
+	// The final renderer still clips this whole line at the trust boundary.
+	pathWidth := min(cellWidth(location), max(1, limit/2))
+	model = clipCells(model, max(1, limit-pathWidth-3))
+	return terminalLine{Text: model + " · " + tailCells(location, max(1, limit-cellWidth(model)-3)), Dim: true}
 }
 
 func tailCells(text string, width int) string {
@@ -295,7 +339,7 @@ func (s terminalShell) history(fragment string, width, rows int) []terminalLine 
 
 // composerViewport preserves the hint on the final row and pans the editor
 // around its cursor. Inactive overlays retain the exact composer text.
-func composerViewport(frame terminalFrame, rows int, active bool) ([]terminalLine, int) {
+func composerViewport(frame terminalFrame, rows int, active, overlay bool) ([]terminalLine, int) {
 	if rows <= 0 {
 		return nil, -1
 	}
@@ -303,7 +347,7 @@ func composerViewport(frame terminalFrame, rows int, active bool) ([]terminalLin
 	if len(lines) == 0 {
 		lines = []terminalLine{{Text: "> "}, {Text: "Tab actions", Dim: true}}
 	}
-	if !active && len(lines) > 1 {
+	if !active && overlay && len(lines) > 1 {
 		lines = append([]terminalLine(nil), lines...)
 		lines[len(lines)-1] = terminalLine{Text: "Draft kept · finish this panel to edit", Dim: true}
 	}
@@ -338,8 +382,8 @@ func composerViewport(frame terminalFrame, rows int, active bool) ([]terminalLin
 
 func (m terminalModel) shellView(width, height int) tea.View {
 	s := m.shell
-	budget := terminalShellBudget(height, len(s.composer.Lines))
-	lines := s.header(width, budget.header)
+	budget := terminalShellBudget(height, len(s.composer.Lines), s.chrome.Panel)
+	lines := s.header(m.mascotHeader(), width, budget.header)
 	body := s.history(m.fragment, width, budget.body)
 	cursorRow, cursorCol := -1, 0
 	if !s.composerFocus && len(m.frame.Lines) > 0 {
@@ -353,13 +397,28 @@ func (m terminalModel) shellView(width, height int) tea.View {
 		lines = append(lines, terminalLine{})
 	}
 	if budget.notice > 0 {
-		lines = append(lines, noticeLine(s.notice))
+		lines = append(lines, m.mascotNotice(width))
 	}
-	composer, row := composerViewport(s.composer, budget.composer, s.composerFocus)
+	if budget.upperRule > 0 {
+		lines = append(lines, shellRule(width))
+	}
+	composer, row := composerViewport(s.composer, budget.composer, s.composerFocus, len(m.frame.Lines) > 0)
 	if row >= 0 {
 		cursorRow, cursorCol = len(lines)+row, s.composer.CursorCol
 	}
+	var hint []terminalLine
+	if !s.chrome.Panel && len(composer) > 1 {
+		hint = composer[len(composer)-1:]
+		composer = composer[:len(composer)-1]
+	}
 	lines = append(lines, composer...)
+	if budget.lowerRule > 0 {
+		lines = append(lines, shellRule(width))
+	}
+	if budget.metadata > 0 {
+		lines = append(lines, s.metadata(width))
+	}
+	lines = append(lines, hint...)
 	rendered := make([]string, len(lines))
 	for i, line := range lines {
 		rendered[i] = terminalStyle(line, width, m.color, m.theme)

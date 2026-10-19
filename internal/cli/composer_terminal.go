@@ -32,7 +32,7 @@ func (s *session) readTerminalLineWithAction(ctx context.Context, action func(co
 		}
 		switch event.kind {
 		case keyEnter:
-			_ = s.terminal.paintComposer(terminalFrame{Lines: []terminalLine{{Text: "> "}, {Text: "Working | Ctrl+C interrupts", Dim: true}}, CursorRow: -1})
+			_ = s.terminal.paintComposer(terminalFrame{Lines: []terminalLine{{Text: "> "}, {Text: "Ctrl+C interrupts", Dim: true}}, CursorRow: -1})
 			_ = s.terminal.paint(terminalFrame{CursorRow: -1})
 			return line{text: editor.text, complete: true, literal: literal}
 		case keyEOF:
@@ -97,7 +97,7 @@ func (s *session) composerFrame(editor textEditor) terminalFrame {
 	editorLines, row, col := editorFrame(editor, max(1, width-1), max(1, min(6, height-len(lines)-2)))
 	row += len(lines)
 	lines = append(lines, editorLines...)
-	if len(lines) < max(1, height-1) {
+	if len(lines) < max(1, height) {
 		lines = append(lines, terminalLine{Text: composerHint(width), Dim: true})
 	}
 	return terminalFrame{Lines: lines, CursorRow: row, CursorCol: col}

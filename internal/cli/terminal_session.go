@@ -59,3 +59,24 @@ func (w terminalNoticeWriter) Write(text []byte) (int, error) {
 	}
 	return len(text), nil
 }
+
+// Activity uses the same bounded queue as text and notices. It never waits for
+// animation to finish and adds no frames to plain/JSON output or saved events.
+func (o *output) activity(id string, static bool) error {
+	if o.terminal == nil || o.json {
+		return nil
+	}
+	return o.write(terminalActivityWriter{terminal: o.terminal, static: static}, id)
+}
+
+type terminalActivityWriter struct {
+	terminal *terminalUI
+	static   bool
+}
+
+func (w terminalActivityWriter) Write(id []byte) (int, error) {
+	if err := w.terminal.activity(string(id), w.static); err != nil {
+		return 0, err
+	}
+	return len(id), nil
+}

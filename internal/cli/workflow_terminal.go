@@ -34,11 +34,11 @@ func inspectWorkflow(ctx context.Context, p invocation, in io.Reader, o *output,
 	}
 	terminal := existing
 	if terminal == nil && !p.noInput && !p.set["plain"] && os.Getenv("TERM") != "dumb" && isTerminal(in) && isTerminal(o.out) {
-		terminal = newTerminalUI(in, o.out, o.cancel, !p.set["no-color"] && os.Getenv("NO_COLOR") == "")
+		terminal = newTerminalUI(in, o.out, o.cancel, !p.set["no-color"] && os.Getenv("NO_COLOR") == "", terminalOptionsFor(p))
 		o.terminal = terminal // Run owns closure after draining output.
 		o.out, o.errOut = terminal.writer, terminal.writer
 		location, _ := os.Getwd()
-		if err := terminal.setChrome(terminalChrome{Version: Version, Location: location, Model: "Workflow plan", Context: "Offline | not executed"}); err != nil {
+		if err := terminal.setChrome(terminalChrome{Version: Version, Location: location, Model: "Workflow plan", Context: "Offline | not executed", Panel: true}); err != nil {
 			return err
 		}
 		if err := terminal.paintComposer(terminalFrame{Lines: []terminalLine{{Text: "Workflow plan · Esc back · Ctrl+C close", Dim: true}}, CursorRow: -1}); err != nil {
@@ -46,6 +46,9 @@ func inspectWorkflow(ctx context.Context, p invocation, in io.Reader, o *output,
 		}
 	}
 	if terminal != nil {
+		_ = o.notice("Plan inspection only | offline; no task started", toneInfo)
+		_ = o.activity("peek", true)
+		defer o.activity("", true)
 		err = inspectWorkflowTerminal(ctx, terminal, spec, plan)
 		if errors.Is(err, io.EOF) {
 			return nil
