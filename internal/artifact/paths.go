@@ -1,9 +1,11 @@
 package artifact
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"unicode/utf8"
 )
 
@@ -24,6 +26,9 @@ func canonicalRoot(root string) (string, error) {
 	var missing []string
 	for {
 		info, err := os.Lstat(existing)
+		if !os.IsNotExist(err) && errors.Is(err, syscall.ENOTDIR) {
+			return "", problem(CacheUnsafe, "Artifact cache ancestor is not a directory.")
+		}
 		if err == nil {
 			if !info.IsDir() && info.Mode()&os.ModeSymlink == 0 {
 				return "", problem(CacheUnsafe, "Artifact cache ancestor is not a directory.")
@@ -52,6 +57,12 @@ func canonicalRoot(root string) (string, error) {
 func checkChain(path string) error {
 	for current := path; ; current = filepath.Dir(current) {
 		info, err := os.Lstat(current)
+		// POSIX reports ENOTDIR at the descendant before the walk reaches the
+		// occupied parent. Windows aliases ENOTDIR to PATH_NOT_FOUND, so its
+		// missing paths must still walk upward to inspect the actual parent.
+		if !os.IsNotExist(err) && errors.Is(err, syscall.ENOTDIR) {
+			return problem(CacheUnsafe, "Artifact cache parent is not a directory.")
+		}
 		if err != nil && !os.IsNotExist(err) {
 			return problem(CacheIO, "Artifact cache path could not be inspected.")
 		}

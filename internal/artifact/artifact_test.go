@@ -15,6 +15,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -345,7 +346,18 @@ func TestForeignPathsAndLinkedEntriesStayUntouched(t *testing.T) {
 	if err := os.WriteFile(occupied, []byte("foreign"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	_, err := c.Ensure(context.Background(), m, Options{})
+	if runtime.GOOS != "windows" {
+		_, err := os.Lstat(filepath.Join(occupied, "sha256"))
+		if !errors.Is(err, syscall.ENOTDIR) {
+			t.Fatalf("fixture must exercise a non-directory ancestor: %v", err)
+		}
+	}
+	_, err := New(filepath.Join(occupied, "nested", "cache"))
+	code(t, err, CacheUnsafe)
+	_, err = c.Find(context.Background(), m)
+	code(t, err, CacheUnsafe)
+	code(t, makePrivateDirs(filepath.Join(occupied, "sha256")), CacheUnsafe)
+	_, err = c.Ensure(context.Background(), m, Options{})
 	code(t, err, CacheUnsafe)
 	actual, _ := os.ReadFile(occupied)
 	if string(actual) != "foreign" {
