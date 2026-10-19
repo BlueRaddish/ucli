@@ -1,6 +1,7 @@
 """One local/CI build route for the experimental Go application (stdlib only)."""
 import argparse
 import hashlib
+import io
 import json
 import os
 from pathlib import Path
@@ -13,6 +14,27 @@ import time
 
 ROOT = Path(__file__).resolve().parents[1]
 
+def go_failure_stdout(output):
+    # Keep early failed-test identities even when later packages bury their
+    # details. Full JSON stays in the receipt; CI console output is bounded.
+    failed = bytearray()
+    for line in io.BytesIO(output):
+        try:
+            event = json.loads(line)
+        except (ValueError, UnicodeDecodeError):
+            continue
+        if not isinstance(event, dict) or event.get('Action') != 'fail':
+            continue
+        identity = json.dumps({key:event[key] for key in ('Package','Test') if key in event},
+                              ensure_ascii=True).encode() + b'\n'
+        if len(failed) + len(identity) > 8192:
+            failed.extend(b'[additional failed identities omitted]\n')
+            break
+        failed.extend(identity)
+    return (b'Go test failed identities (bounded):\n' + failed +
+            b'Captured Go stdout tail (at most 32 KiB; complete JSON in test.stdout.txt):\n' +
+            output[-32768:] + b'\n')
+
 def fingerprints(root):
     sources = [x for x in root.rglob('*.go') if 'spikes' not in x.relative_to(root).parts and '.build' not in x.relative_to(root).parts]
     # The voice helper is embedded in Go and must share its build identity.
@@ -23,6 +45,13 @@ def fingerprints(root):
     return digest(sources), digest((root/'tools').glob('*.py'))
 
 def self_test():
+    early = json.dumps({'Action':'fail','Package':'fixture/early','Test':'TestFirst'}).encode() + b'\n'
+    later = json.dumps({'Action':'output','Output':'later passing package output\n'}).encode() + b'\n'
+    summary = go_failure_stdout(early + later * 2000)
+    assert b'TestFirst' in summary and b'later passing package output' in summary
+    assert len(summary) < 42 * 1024, 'failure console output is not bounded'
+    assert b'not-json' in go_failure_stdout(b'not-json\nnull\n'), 'non-JSON failure output was lost'
+    assert len(go_failure_stdout(early * 2000)) < 42 * 1024, 'failed identities are not bounded'
     with tempfile.TemporaryDirectory(prefix='ucli-build-identity-') as directory:
         root=Path(directory)
         (root/'tools').mkdir()
@@ -45,7 +74,7 @@ def self_test():
         before=fingerprints(root)
         helper.write_text('print("changed")\n',encoding='utf8')
         assert before!=fingerprints(root), 'changed embedded voice source was not detected'
-    print('build provenance guard self-check passed')
+    print('build provenance and bounded failure diagnostics self-check passed')
     return 0
 
 def main():
@@ -86,6 +115,8 @@ def main():
             'elapsed_seconds': round(time.monotonic()-start,3)})
         print(f'{label}: exit {proc.returncode}', flush=True)
         if proc.returncode:
+            if label == 'test':
+                sys.stderr.buffer.write(go_failure_stdout(proc.stdout))
             sys.stderr.buffer.write(proc.stderr)
             raise RuntimeError(f'{label} failed; see {evidence}')
         return proc.stdout
