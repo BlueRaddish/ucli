@@ -134,7 +134,11 @@ func TestBackupSnapshotIncludesLiveWALAndReopensForInspectionAndReplay(t *testin
 	if code != 0 || progress != "" {
 		t.Fatalf("human backup: %d %s %s", code, text, progress)
 	}
-	for _, want := range []string{"Backup saved: " + humanPath, "SHA-256:", "Tasks: 2 | attempts: 2", "unsettled attempts: 1", "Native credential stores are not included", "Unsettled attempts remain unsettled", "No work was restored or resumed"} {
+	humanPhysical, err := filepath.EvalSymlinks(humanPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"Backup saved: " + humanPhysical, "SHA-256:", "Tasks: 2 | attempts: 2", "unsettled attempts: 1", "Native credential stores are not included", "Unsettled attempts remain unsettled", "No work was restored or resumed"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("missing backup feedback %q: %s", want, text)
 		}

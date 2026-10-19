@@ -186,7 +186,7 @@ def main():
 
             backup=scratch/'saved work.sqlite'
             receipt=data(run('backup',[*h,'backup',str(backup),'--json']),'backup')
-            assert receipt['version']==1 and receipt['schema']==1 and Path(receipt['path'])==backup
+            assert receipt['version']==1 and receipt['schema']==1 and Path(receipt['path'])==backup.resolve(strict=True)
             assert receipt['sha256']==sha(backup)
             assert receipt['bytes']==backup.stat().st_size and receipt['tasks']==2 and receipt['attempts']==3
             original_hash=receipt['sha256']
