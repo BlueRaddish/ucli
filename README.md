@@ -1,7 +1,7 @@
 # UCLI
 
 <p align="center">
-  <img src="assets/logo/ucli-loaf.png" alt="UCLI Loaf cat logo" width="240" />
+  <img src="assets/logo/ucli-loaf-outlined.png" alt="UCLI Loaf cat logo" width="240" />
 </p>
 
 [UCLI](https://github.com/BlueRaddish/ucli) is an experimental universal command-line interface for working with AI agents. Its purpose is day-to-day comfort: one discoverable place to choose models, switch accounts, set effort levels, and return to saved work without memorizing each vendor's command syntax and session flags.

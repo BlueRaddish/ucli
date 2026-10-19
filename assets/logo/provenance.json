@@ -1,7 +1,7 @@
 {
-  "asset": "ucli-loaf.png",
+  "asset": "ucli-loaf-outlined.png",
   "name": "Loaf",
-  "purpose": "Selected UCLI cat logo for README and project identity",
+  "purpose": "Selected UCLI Loaf logo with a pale contour for light and dark backgrounds",
   "generator": "built-in image_gen",
   "concept_author": "Codex",
   "selection": "Owner preferred Loaf from the reviewed options on2026-10-19",
@@ -10,6 +10,9 @@
     1536,
     1024
   ],
-  "sha256": "55fae70069b6f451347dd2a53dd8ce4a8d5737042d603639be696a3bb7c0e82a",
-  "prompt": "Use case: logo-brand. Create one fresh finished cat logo for UCLI, a comfortable universal command-line tool for AI agents. Design direction: LOAF, a relaxed sleepy black cat seen in side/three-quarter view lying low with paws tucked under its body, long tail curling gently beside it. The whole-cat silhouette, distinctive pointed ears, a tiny cream snout, and two simple relaxed closed eyes make it recognizably feline at a glance. Understated, cozy, playful indie developer identity. Elegant soft organic curves, not a geometric shield or symmetrical generic head. One or two flat solid colors: almost-black inky plum and warm off-white for essential facial details. The silhouette must remain recognizable as a favicon at 24px. Flat crisp professional illustration that is vector-friendly, substantial clean shapes, visually balanced, no outlines around a badge, no terminal symbols, no chevrons, no letters, no laptop, no text, no gradients, no 3D, no shadows, no orange/coral cat-head treatment. Show exactly one large centered cat mark with generous transparent padding, no presentation board. Genuinely transparent background."
+  "sha256": "2c27751f1eac60386c425f4ebc52f400a842596298b26134c1a1782dab0efa89",
+  "prompt": "Edit this exact selected Loaf cat logo for visibility on dark backgrounds. Add a clean, continuous, opaque warm-white (#fff5e8) outline just outside the cat's complete silhouette, about 16-20 pixels thick at the original image scale (a restrained sticker edge, not a wide border). Follow the ears, cheeks, tucked paws, back and entire curled tail faithfully, and clarify the tail separation with the same pale edge where needed. Preserve the exact original sleepy dark-plum cat, closed eyes, cream nose/mouth, pose, tail curl, proportions, silhouette, canvas composition and visual identity. Change only the narrow outer contour; do not redraw or restyle the cat, add fur/shading or symbols, or change its expression. Keep all surrounding pixels genuinely transparent with no glow, shadow, colored haze, card, background, text or added objects. The result must read crisply on near-black, charcoal and white backgrounds while remaining clearly the same Loaf cat.",
+  "original_prompt": "Use case: logo-brand. Create one fresh finished cat logo for UCLI, a comfortable universal command-line tool for AI agents. Design direction: LOAF, a relaxed sleepy black cat seen in side/three-quarter view lying low with paws tucked under its body, long tail curling gently beside it. The whole-cat silhouette, distinctive pointed ears, a tiny cream snout, and two simple relaxed closed eyes make it recognizably feline at a glance. Understated, cozy, playful indie developer identity. Elegant soft organic curves, not a geometric shield or symmetrical generic head. One or two flat solid colors: almost-black inky plum and warm off-white for essential facial details. The silhouette must remain recognizable as a favicon at 24px. Flat crisp professional illustration that is vector-friendly, substantial clean shapes, visually balanced, no outlines around a badge, no terminal symbols, no chevrons, no letters, no laptop, no text, no gradients, no 3D, no shadows, no orange/coral cat-head treatment. Show exactly one large centered cat mark with generous transparent padding, no presentation board. Genuinely transparent background.",
+  "source_sha256": "55fae70069b6f451347dd2a53dd8ce4a8d5737042d603639be696a3bb7c0e82a",
+  "edit": "Add a light silhouette outline; preserve the selected sleepy cat identity"
 }
