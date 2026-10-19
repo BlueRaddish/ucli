@@ -40,7 +40,7 @@ def fingerprints(root):
     # The voice helper is embedded in Go and must share its build identity.
     # Add any future non-Go embedded source types here and extend the self-check.
     sources += [x for x in (root/'internal').rglob('*.py') if '.build' not in x.relative_to(root).parts]
-    sources += [root/'go.mod',root/'go.sum']
+    sources += [root/'assets/mascot/cat-animations.json',root/'go.mod',root/'go.sum']
     digest = lambda paths: {str(x.relative_to(root)).replace('\\','/'):hashlib.sha256(x.read_bytes()).hexdigest() for x in sorted(paths) if x.is_file()}
     return digest(sources), digest((root/'tools').glob('*.py'))
 
@@ -74,6 +74,16 @@ def self_test():
         before=fingerprints(root)
         helper.write_text('print("changed")\n',encoding='utf8')
         assert before!=fingerprints(root), 'changed embedded voice source was not detected'
+        catalog=root/'assets/mascot/cat-animations.json'
+        catalog.parent.mkdir(parents=True)
+        catalog.write_text('{"frames":1}\n',encoding='utf8')
+        before=fingerprints(root)
+        assert 'assets/mascot/cat-animations.json' in before[0]
+        catalog.write_text('{"frames":2}\n',encoding='utf8')
+        assert before!=fingerprints(root), 'changed embedded mascot catalog was not detected'
+        before=fingerprints(root)
+        catalog.unlink()
+        assert before!=fingerprints(root), 'removed embedded mascot catalog was not detected'
     print('build provenance and bounded failure diagnostics self-check passed')
     return 0
 
