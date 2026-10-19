@@ -10,7 +10,7 @@ The main cat has one face and two expressions. `(^.⩊.^)/` is friendly and expr
 | Working (`working`) | An actual `App.Run` call or voice transcription | Loop while the operation is active |
 | Looking (`looking`) | Native sign-in checking and waiting | Loop until that operation ends; task search/routing is not connected in this slice |
 | Paw tap (`paw`) | Voice preparation | Loop during preparation |
-| Attentive (`listen`) | Active voice recording | Static cat alongside the real Recording label and stop control |
+| Attentive (`listen`) | Active voice recording | Static cat alongside the real Recording label and stop control, until capture-stopped acknowledgement |
 | Done (`done`) | `App.Run` returns a durably completed result without warnings | One celebration, then the happy static frame at `static_frame: 3` |
 | Rest (`rest`) | Catalog available; no idle runtime hook in this slice | Bounded settling sequence, then static |
 | Table peek (`peek`) | Offline workflow inspection | Static pose with an explicit no-task-started notice |
