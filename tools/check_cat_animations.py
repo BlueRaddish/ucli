@@ -7,7 +7,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 IDS = {'wave', 'working', 'looking', 'paw', 'listen', 'done', 'rest', 'peek'}
-FRIENDLY = {'wave', 'done'}
+FRIENDLY = {'wave', 'done', 'rest'}
 MOUTH = '\u2a4a'
 MAX_BYTES = 128 * 1024
 
@@ -115,6 +115,7 @@ def self_test(data):
     focused = next(index for index, animation in enumerate(data['animations'])
                    if animation['id'] not in FRIENDLY | {'peek'})
     peek = next(index for index, animation in enumerate(data['animations']) if animation['id'] == 'peek')
+    rest = next(index for index, animation in enumerate(data['animations']) if animation['id'] == 'rest')
     baseline = data['animations'][core]['frames'][0]['text']
     calm = data['animations'][focused]['frames'][0]['text']
     ordinary = next(index for index, char in enumerate(baseline) if char != MOUTH)
@@ -141,6 +142,7 @@ def self_test(data):
         (('animations', core, 'frames', 0, 'ms'), 2001),
         (('animations', focused, 'frames', 0, 'text'), calm[:3] + MOUTH + calm[4:]),
         (('animations', focused, 'frames', 0, 'text'), calm[:3] + ' ' + calm[4:]),
+        (('animations', rest, 'frames', 0, 'text'), '(^-_-^) '),
         (('animations', peek, 'playback'), 'loop'),
         (('animations', peek, 'frames', 0, 'text'), '__\u1a10__   '),
         (('animations', peek, 'frames', 1, 'text'), '_____   '),

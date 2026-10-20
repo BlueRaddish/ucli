@@ -131,9 +131,9 @@ func validFrame(id string, index int, text string) bool {
 		return false
 	}
 	switch id {
-	case "wave", "done":
+	case "wave", "done", "rest":
 		return runes[3] == '⩊' && strings.Count(text, "⩊") == 1
-	case "working", "looking", "paw", "listen", "rest":
+	case "working", "looking", "paw", "listen":
 		return runes[3] == '_' && !strings.ContainsRune(text, '⩊')
 	case "peek":
 		if index == 0 {

@@ -2,7 +2,7 @@
 
 UCLI's cat gives the terminal a small, recognizable companion without asking people to learn another interface. It follows the same priorities as the CLI: make actions discoverable, preserve drafts and context, and show what is actually happening. The rich terminal now embeds the reusable frame catalog. Lifecycle hooks select a sequence without downloading assets or changing task state; further placements remain design proposals.
 
-The main cat has one face and two expressions. `(^.⩊.^)/` is friendly and expressive for greetings and saved-result celebrations. `(^._.^) ` is neutral, focused, or serious for work, search, preparation, voice attention, and rest. A sequence keeps its mouth constant while its eyes or paw animate; a real state change chooses the next expression. The [animation catalog](../assets/mascot/cat-animations.json) defines eight sequences, each with an eight-column layout budget, including padding. The [catalog checker](../tools/check_cat_animations.py) checks the assets. A moving cat accompanies a status label; it never establishes that an operation started, succeeded, or stopped.
+The main cat has one face and two expressions. `(^.⩊.^)/` is friendly and expressive for greetings and saved-result celebrations; Rest pairs the same mouth with closed `-` eyes. `(^._.^) ` is neutral, focused, or serious for work, search, preparation, and voice attention. A sequence keeps its mouth constant while its eyes or paw animate; a real state change chooses the next expression. The [animation catalog](../assets/mascot/cat-animations.json) defines eight sequences, each with an eight-column layout budget, including padding. The [catalog checker](../tools/check_cat_animations.py) checks the assets. A moving cat accompanies a status label; it never establishes that an operation started, succeeded, or stopped.
 
 | Sequence | Current runtime trigger | Playback and settled state |
 | --- | --- | --- |
@@ -12,7 +12,7 @@ The main cat has one face and two expressions. `(^.⩊.^)/` is friendly and expr
 | Paw tap (`paw`) | Voice preparation | Loop during preparation |
 | Attentive (`listen`) | Active voice recording | Static cat alongside the real Recording label and stop control, until capture-stopped acknowledgement |
 | Done (`done`) | `App.Run` returns a durably completed result without warnings | One celebration, then the happy static frame at `static_frame: 3` |
-| Rest (`rest`) | Catalog available; no idle runtime hook in this slice | Bounded settling sequence, then static |
+| Rest (`rest`) | Catalog available; no idle runtime hook in this slice | Closed `-` eyes and friendly mouth; bounded settling sequence, then static |
 | Table peek (`peek`) | Offline workflow inspection | Static pose with an explicit no-task-started notice |
 
 The runtime uses the single status row above the framed composer. The header cat stays static; at most one notice cat animates. Errors and warnings stop that animation and keep their full text priority. At constrained widths, the cat is omitted before shortening status or recovery information. Background rows do not animate independently. Animated empty-state and explicit help/about easter eggs remain proposals.
