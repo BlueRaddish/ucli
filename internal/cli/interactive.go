@@ -548,6 +548,9 @@ func (s *session) selectSetting(ctx context.Context, field string) error {
 	case "/accounts":
 		current = s.selection.Account
 		for _, account := range s.app.Accounts() {
+			if account.Runtime == "github" || account.Runtime == "agy" {
+				continue // Identity/catalog connections cannot send AI prompts.
+			}
 			rows = append(rows, choice{account.ID, account.Label + " - " + account.Runtime + " | " + account.Status})
 		}
 		rows = append(rows, choice{"__connect__", "Connect another AI account - use an existing login or sign in"})

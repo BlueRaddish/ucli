@@ -45,5 +45,9 @@ func (s *session) sendDraft(ctx context.Context) error {
 	if runErr != nil {
 		return runErr
 	}
-	return s.out.notice("Ready for your next prompt | /sessions shows progress and results", toneSuccess)
+	ready := "Ready for your next prompt | /sessions shows progress and results"
+	if s.terminal == nil {
+		return s.out.text(ready + "\n")
+	}
+	return s.out.notice(ready, toneSuccess)
 }
