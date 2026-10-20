@@ -41,6 +41,36 @@ provider inference. Geometry captures are ANSI-emulated evidence, not physical
 screenshots or human usability measurements. macOS and Linux cross-builds do
 not establish host execution or terminal behavior on those platforms.
 
+## Inline slash completion - October 20
+
+The rich composer uses the same supported-command registry as `/help`. Typing `/`
+opens descriptions in a bounded part of the transcript body; `/mo` narrows the
+matches. `Up`/`Down` wrap, `Tab` completes the selection, and `Enter` completes a
+partial command without dispatch. Fully typed commands retain normal `Enter`
+behavior; an inserted command has a trailing space and runs only on a subsequent
+submission. `Escape` preserves the input and keeps completion dismissed until an
+edit. Arguments, multiline input, ordinary slash-containing text and bracketed
+paste do not activate completion. No-match feedback leaves input editable. The
+popup must preserve composition, cursor, notice and model/path footer positions.
+
+Run `go test -count=1 ./internal/cli -run 'TestTerminalCompletion|TestCompletion'`
+for the pure completion, rendering and boundary tests. On Windows, set the same
+`UCLI_CONPTY_BINARY`, `UCLI_CONPTY_EVIDENCE` and `UCLI_TERMINAL_QA_DEPS` variables
+as the fixed-shell route above, then run:
+
+```console
+go test -count=1 ./internal/cli -run '^TestPackagedConPTYSlashCompletion$'
+```
+
+The packaged test drives all supported commands through the bounded popup,
+wrapping and prefix filtering, completion before action, Escape/edit reopening,
+no-match recovery, 60x20 resizing, literal `/send` paste and interrupted input.
+It checks unchanged saved selections and zero attempts while browsing/completing,
+and verifies retained literal text without provider dispatch. The frame negative
+control rejects a detached cursor or lost input. This is a hidden virtual-console
+route with synthetic state; no native account, model download or real inference
+is required. A skipped opt-in or a test definition is not a packaged pass.
+
 ## Build and ordinary checks
 
 Use Go 1.27.2 and Python 3.13. The Python tooling uses the standard library.
