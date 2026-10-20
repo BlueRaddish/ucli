@@ -168,7 +168,7 @@ func (s *Service) inspectNative(ctx context.Context, c Connection) (Connection, 
 		var typed *core.Error
 		if c.Provider == "claude" && errors.As(err, &typed) && typed.Code == "claude_version" {
 			copy := *typed
-			copy.Message = fmt.Sprintf("Claude Code %s is installed, but UCLI's adapter is reviewed for %s. Your native sign-in may still work; this is a version compatibility check, not a request to sign in again. Use Claude Code directly until this version is reviewed.", c.Version, claude.Version)
+			copy.Message = fmt.Sprintf("This Claude Code installation (%s) does not match UCLI's reviewed %s build. Your native sign-in may still work; this is a version or build compatibility check, not a request to sign in again. Use Claude Code directly until this installation is reviewed.", c.Version, claude.Version)
 			err = &copy
 		}
 		return updated, err
