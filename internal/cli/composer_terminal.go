@@ -16,6 +16,7 @@ func (s *session) readTerminalLine(ctx context.Context) line {
 func (s *session) readTerminalLineWithAction(ctx context.Context, action func(context.Context, string) (bool, error)) line {
 	editor := textEditor{}
 	literal := false
+	completion := terminalCompletion{}
 	for {
 		if err := s.syncTerminalChrome(); err != nil {
 			return line{text: editor.text, literal: true, err: err}
@@ -23,12 +24,62 @@ func (s *session) readTerminalLineWithAction(ctx context.Context, action func(co
 		if s.recoveryID != "" {
 			_ = s.out.notice("Draft conflict | choose /tasks or /new", toneWarning)
 		}
-		if err := s.terminal.paintComposer(s.composerFrame(editor)); err != nil {
+		completion.sync(editor.text, editor.cursor, literal)
+		frame := s.composerFrame(editor)
+		frame.Completion = completion.result()
+		frame.CompletionQuery = editor.text
+		width, bodyRows := s.terminal.size()
+		if s.terminal.shellEnabled.Load() {
+			bodyRows = terminalShellBudget(int(s.terminal.height.Load()), len(frame.Lines), s.terminal.panelSurface.Load()).body
+		}
+		completionReady := completionCanAccept(frame.Completion, width, bodyRows)
+		if frame.Completion.Visible && len(frame.Lines) > 1 {
+			hint := "Keep typing · Esc close"
+			if len(frame.Completion.Rows) > 0 {
+				hint = "Resize for commands · Esc close"
+				if completionReady {
+					hint = completionHint(width, editor.text == frame.Completion.Rows[frame.Completion.Focus].Name)
+				}
+			}
+			frame.Lines[len(frame.Lines)-1] = terminalLine{Text: hint, Dim: true}
+		}
+		if err := s.terminal.paintComposer(frame); err != nil {
 			return line{text: editor.text, literal: true, err: err}
 		}
 		event, err := s.terminal.next(ctx)
 		if err != nil {
 			return line{text: editor.text, literal: true, err: err}
+		}
+		if frame.Completion.Visible {
+			switch event.kind {
+			case keyUp, keyDown, keyPageUp, keyPageDown:
+				delta := 1
+				if event.kind == keyPageUp || event.kind == keyPageDown {
+					delta = 5
+				}
+				if event.kind == keyUp || event.kind == keyPageUp {
+					delta = -delta
+				}
+				completion.move(delta)
+				continue
+			case keyEscape:
+				completion.dismiss()
+				continue
+			case keyTab, keyEnter:
+				// A fully typed action retains its familiar Enter behavior. A
+				// partial name only completes; accepting it cannot submit a task.
+				exact := false
+				result := frame.Completion
+				if result.Focus >= 0 && result.Focus < len(result.Rows) {
+					exact = editor.text == result.Rows[result.Focus].Name
+				}
+				if event.kind == keyTab || !exact && len(result.Rows) > 0 {
+					if text, ok := completion.accept(); ok && completionReady {
+						editor.set(text)
+					}
+					continue
+				}
+			}
 		}
 		switch event.kind {
 		case keyEnter:

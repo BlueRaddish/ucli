@@ -384,7 +384,12 @@ func (m terminalModel) shellView(width, height int) tea.View {
 	s := m.shell
 	budget := terminalShellBudget(height, len(s.composer.Lines), s.chrome.Panel)
 	lines := s.header(m.mascotHeader(), width, budget.header)
-	body := s.history(m.fragment, width, budget.body)
+	var popup []terminalLine
+	if s.composerFocus {
+		popup = completionLines(s.composer.Completion, s.composer.CompletionQuery, width, budget.body)
+	}
+	historyRows := budget.body - len(popup)
+	body := s.history(m.fragment, width, historyRows)
 	cursorRow, cursorCol := -1, 0
 	if !s.composerFocus && len(m.frame.Lines) > 0 {
 		body = m.frame.Lines[:min(len(m.frame.Lines), budget.body)]
@@ -393,9 +398,10 @@ func (m terminalModel) shellView(width, height int) tea.View {
 		}
 	}
 	lines = append(lines, body...)
-	for len(lines) < budget.header+budget.body {
+	for len(lines) < budget.header+historyRows {
 		lines = append(lines, terminalLine{})
 	}
+	lines = append(lines, popup...)
 	if budget.notice > 0 {
 		lines = append(lines, m.mascotNotice(width))
 	}

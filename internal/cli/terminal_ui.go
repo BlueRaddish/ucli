@@ -56,6 +56,8 @@ type terminalLine struct {
 type terminalFrame struct {
 	Lines                []terminalLine
 	CursorRow, CursorCol int // zero based; a negative row hides the cursor
+	Completion           completionResult
+	CompletionQuery      string
 }
 
 type terminalProgram interface {
@@ -214,7 +216,7 @@ func (m terminalModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		event, emit = keyEvent{kind: keyPaste, text: value.Content}, true
 	case tea.KeyPressMsg:
 		event, emit = terminalKey(value)
-		if m.shell.enabled && m.shell.composerFocus && (event.kind == keyPageUp || event.kind == keyPageDown) {
+		if m.shell.enabled && m.shell.composerFocus && !m.shell.composer.Completion.Visible && (event.kind == keyPageUp || event.kind == keyPageDown) {
 			step := max(1, terminalShellBudget(int(m.ui.height.Load()), len(m.shell.composer.Lines), m.shell.chrome.Panel).body-1)
 			maximum := max(0, len(m.shell.historyLines(m.fragment, int(m.ui.width.Load())))-step)
 			m.shell.scroll = min(m.shell.scroll, maximum)

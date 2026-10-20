@@ -16,32 +16,6 @@ import (
 	"ucli.local/ucli/internal/core"
 )
 
-const interactiveHelp = `Actions:
-  /send          submit the saved draft
-  /draft TEXT    replace the draft; omit TEXT to inspect it
-  /models        search and choose the next model
-  /accounts      search and choose an authorized account
-  /login [NAME]  connect an existing account or start native sign-in
-  /logout ID     unlink a connection; keep native sign-in
-  /effort        choose auto, low, medium, high or max
-  /permission    choose a permission envelope separately from effort
-  /tasks         search and page saved work without running it
-  /workflow FILE inspect an offline plan and step details; omit FILE to choose
-  /voice [FILE]  dictate or transcribe a PCM WAV into the draft; never send it
-  /result        inspect the latest five attempts and saved results
-  /older         read the next older page shown by /result
-  /new           start a fresh task; keep earlier drafts
-  /explain       inspect the next route without submitting
-  /recover       reconcile a stopped demo; never replay it
-  /demo          enable simulation or explicit native echo (no AI)
-  /help          show these actions
-  /exit          leave with saved drafts; never submit on EOF
-Enter adds a line to the draft. /send submits it.
-Commands apply only on a line by themselves or with their documented argument.
-Use /draft TEXT to enter text beginning with a slash.
-This foreground milestone has no live steering or detach.
-`
-
 type line struct {
 	text     string
 	complete bool
@@ -335,6 +309,11 @@ func (s *session) markConflict(err error, text string) bool {
 
 func (s *session) action(ctx context.Context, text string) (bool, error) {
 	verb, argument, hasArgument := strings.Cut(text, " ")
+	// Completion inserts a trailing delimiter for arguments. Whitespace alone
+	// is not an argument; preserve the actual bytes of explicit /draft TEXT.
+	if hasArgument && (argument == "" || verb != "/draft" && strings.TrimSpace(argument) == "") {
+		argument, hasArgument = "", false
+	}
 	if hasArgument && verb != "/draft" && verb != "/workflow" && verb != "/voice" && verb != "/login" && verb != "/logout" {
 		return false, usageError("" + verb + " takes no text; use /draft TEXT for literal input")
 	}
@@ -353,7 +332,7 @@ func (s *session) action(ctx context.Context, text string) (bool, error) {
 	case "/exit":
 		return true, nil
 	case "/help":
-		_ = s.out.text(interactiveHelp)
+		_ = s.out.text(interactiveHelp())
 	case "/new":
 		s.task = nil
 		s.recoveryID = ""
