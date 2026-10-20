@@ -89,14 +89,16 @@ type terminalFrameMsg terminalFrame
 type terminalFragmentMsg string
 
 type terminalModel struct {
-	ui       *terminalUI
-	frame    terminalFrame
-	fragment string
-	color    bool
-	shell    terminalShell
-	theme    terminalTheme
-	options  terminalOptions
-	mascot   terminalMascot
+	ui                  *terminalUI
+	frame               terminalFrame
+	fragment            string
+	color               bool
+	shell               terminalShell
+	theme               terminalTheme
+	options             terminalOptions
+	mascot              terminalMascot
+	interruptUntil      time.Time
+	interruptGeneration uint64
 }
 
 func (m terminalModel) Init() tea.Cmd {
@@ -110,6 +112,11 @@ func (m terminalModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var event keyEvent
 	emit := false
 	switch value := msg.(type) {
+	case interruptConfirmExpiredMsg:
+		if value.Generation == m.interruptGeneration {
+			m.clearInterruptConfirmation()
+		}
+		return m, nil
 	case terminalActivityMsg:
 		command := m.startMascot(value, time.Now())
 		return m, command
@@ -209,6 +216,7 @@ func (m terminalModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.ui.height.Store(int64(max(1, value.Height)))
 		event, emit = keyEvent{kind: keyResize}, true
 	case tea.PasteMsg:
+		m.clearInterruptConfirmation()
 		if len(value.Content) > core.MaxInputBytes || !utf8.ValidString(value.Content) || strings.ContainsRune(value.Content, 0) {
 			m.ui.fail(core.Problem("invalid_input", "Pasted input must be valid UTF-8 without NUL, at most 1 MiB.", 2))
 			break
@@ -216,6 +224,9 @@ func (m terminalModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		event, emit = keyEvent{kind: keyPaste, text: value.Content}, true
 	case tea.KeyPressMsg:
 		event, emit = terminalKey(value)
+		if emit && event.kind != keyInterrupt {
+			m.clearInterruptConfirmation()
+		}
 		if m.shell.enabled && m.shell.composerFocus && !m.shell.composer.Completion.Visible && (event.kind == keyPageUp || event.kind == keyPageDown) {
 			step := max(1, terminalShellBudget(int(m.ui.height.Load()), len(m.shell.composer.Lines), m.shell.chrome.Panel).body-1)
 			maximum := max(0, len(m.shell.historyLines(m.fragment, int(m.ui.width.Load())))-step)
@@ -230,10 +241,8 @@ func (m terminalModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	if emit {
 		if event.kind == keyInterrupt {
-			m.stopMascot()
-			// The outer application owns signals and execution cancellation. Keep
-			// the renderer alive long enough to flush its durable outcome message.
-			m.ui.interrupt()
+			command := m.confirmInterrupt(time.Now())
+			return m, command
 		} else {
 			m.ui.enqueue(event)
 		}
@@ -306,6 +315,14 @@ func (m terminalModel) View() tea.View {
 		}
 		text := terminalStyle(line, width, m.color, m.theme)
 		lines = append(lines, text)
+	}
+	if !m.interruptUntil.IsZero() {
+		notice := terminalStyle(m.interruptNotice(width), width, m.color, m.theme)
+		if len(lines) > 0 && m.frame.CursorRow+offset != len(lines)-1 {
+			lines[len(lines)-1] = notice
+		} else if len(lines) < max(1, height-1) {
+			lines = append(lines, notice)
+		}
 	}
 	view := tea.NewView(strings.Join(lines, "\n"))
 	if row := m.frame.CursorRow + offset; m.frame.CursorRow >= 0 && row < len(lines) {

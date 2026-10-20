@@ -403,7 +403,11 @@ func (m terminalModel) shellView(width, height int) tea.View {
 	}
 	lines = append(lines, popup...)
 	if budget.notice > 0 {
-		lines = append(lines, m.mascotNotice(width))
+		notice := m.mascotNotice(width)
+		if !m.interruptUntil.IsZero() {
+			notice = m.interruptNotice(width)
+		}
+		lines = append(lines, notice)
 	}
 	if budget.upperRule > 0 {
 		lines = append(lines, shellRule(width))

@@ -28,9 +28,14 @@ func TestTerminalModelInputAndBounds(t *testing.T) {
 	if event, _ := u.next(ctx); event.kind != keyPaste || event.text != "/send\n/exit" {
 		t.Fatal(event)
 	}
+	updated, _ = m.Update(tea.KeyPressMsg(tea.Key{Code: 'c', Mod: tea.ModCtrl}))
+	m = updated.(terminalModel)
+	if ctx.Err() != nil {
+		t.Fatal("first copy/interrupt gesture canceled the application")
+	}
 	_, _ = m.Update(tea.KeyPressMsg(tea.Key{Code: 'c', Mod: tea.ModCtrl}))
 	if ctx.Err() == nil {
-		t.Fatal("interrupt did not reach application")
+		t.Fatal("confirmed interrupt did not reach application")
 	}
 }
 

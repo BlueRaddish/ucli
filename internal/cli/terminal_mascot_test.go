@@ -15,7 +15,7 @@ import (
 
 func TestMascotDeadlineAdvancesWithoutInputOrDraftMutation(t *testing.T) {
 	u, program := shellHarness(t, 80, 24, false)
-	_ = u.paintComposer(terminalFrame{Lines: []terminalLine{{Text: "> keep this draft"}, {Text: "Enter saves"}}, CursorRow: 0, CursorCol: 17})
+	_ = u.paintComposer(terminalFrame{Lines: []terminalLine{{Text: "> keep this draft"}, {Text: "Enter sends"}}, CursorRow: 0, CursorCol: 17})
 	_ = u.notice(terminalNotice{Text: "Ready", Kind: toneInfo})
 	model, command := program.model.Update(terminalActivityMsg{ID: "wave"})
 	before := model.(terminalModel)
