@@ -71,6 +71,54 @@ control rejects a detached cursor or lost input. This is a hidden virtual-consol
 route with synthetic state; no native account, model download or real inference
 is required. A skipped opt-in or a test definition is not a packaged pass.
 
+## Direct prompts, model setup and session monitoring - October 20
+
+A nonempty Enter sends one reviewed composition; empty Enter starts nothing.
+Newline keys, bracketed paste, voice insertion, editable draft restoration and
+menu return must preserve literal text. Missing prerequisites keep unsent input,
+and a CAS conflict keeps a separate recovery draft instead of retrying. In rich
+mode, first Ctrl+C shows a two-second confirmation; the second confirms. Typing
+or Escape disarms it, stale timers cannot clear newer notices, and noninteractive
+SIGINT remains immediate. Unknown native outcomes retain their existing fence.
+
+The model picker must show unavailable Claude aliases and cached AGY models as
+inspection/setup actions, never executable selections. Verify unique row focus
+identities, keyboard navigation, independent pins and cancellation. Local path
+presence, cached sign-in, version compatibility and execution support are distinct.
+AGY metadata refresh is explicit, bounded and display-only; ordinary listing must
+not launch a native process. Test strict malformed catalog rejection and offline
+cache reload. The default interactive account action checks/reuses existing
+sign-in; fresh browser/device sign-in is a separate explicit action.
+
+The read-only `/sessions` overview refreshes saved status and opens bounded
+activity/output detail. Back and refresh preserve query/focus plus the active
+composition, pins and concurrency revision. Running is a recorded state, not a
+liveness proof. Check unknown labels, malformed event identity/sequence, bounded
+UTF-8 output, failed reads, cancellation and worker cleanup. The monitor must not
+dispatch, select an active task, cancel an executor or resume uncertain work.
+
+Focused checks from the repository root:
+
+```console
+go test -count=1 ./internal/cli -run 'TestEnter|TestInterruptConfirmation|TestSessionMonitor|TestModel|TestConnection'
+go test -count=1 ./internal/app -run 'TestModelCatalog|TestCatalogDoesNotAdmit'
+go test -count=1 ./internal/connections -run 'TestAGYCatalog'
+```
+
+After freezing source and building, reuse the Windows ConPTY environment above
+for the real packaged input path:
+
+```console
+go test -count=1 ./internal/cli -run '^TestPackagedConPTY(EnterSendAndInterruptGuard|RichComposer|ConnectionDiscoveryAndSandbox|FixedShell|SlashCompletion|RichTaskFinder|VoiceDraftAndCancellation)$'
+```
+
+Use the current session-monitor packaged route when present, and run the complete
+`TestPackagedConPTY` family for delivery. Keep proof from the exact binary, inspect
+80x24 and 60x20 light/dark captures, and check notice/editor/footer/cursor placement.
+All these recipes use synthetic homes/demo or pure fixtures. No provider login,
+real inference, downloads or microphone are needed. Definitions, skipped opt-ins
+and earlier-version receipts are not a pass for the new behavior.
+
 ## Build and ordinary checks
 
 Use Go 1.27.2 and Python 3.13. The Python tooling uses the standard library.

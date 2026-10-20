@@ -8,6 +8,25 @@ immediately above input; distinguish errors, warnings and ordinary content.
 Ease of use means that those facts and the next action remain visible without
 remembering commands or reopening menus.
 
+## Current UCLI behavior overrides - October 20
+
+The source-backed comparison below records the October 19 proposal. Its sample
+header placement and Enter-to-save instructions are historical, not current user
+instructions. The implemented shell has a static cat/version/context header with
+a rule, a bounded body, and a bottom notice, upper rule, editor, lower rule,
+model/path footer and hints. The new prompt loop sends a nonempty composition on
+Enter; newline keys are Alt+Enter, Shift+Enter and Ctrl+J. Paste and voice remain
+literal reviewable input. Restored pending text is editable and preserved through
+menus; Escape closes the current view without submitting it.
+
+Rich Ctrl+C first requests confirmation and only a second press within two
+seconds interrupts/exits. `/models` exposes unavailable entries with setup
+explanations, and `/sessions` is a read-only overview/detail/Back monitor. It does
+not detach or control executors. These user choices supersede the earlier
+proposal without changing native permission or unknown-outcome boundaries.
+Current implementation checks are in [verification](verification.md); historical
+reference screenshots/source review do not verify these new interaction paths.
+
 ## Evidence and current native versions
 
 The installed files changed after the earlier native-client audit. This review

@@ -29,7 +29,7 @@ voice preparation. Keep ordinary startup/catalog/task browsing free of optional
 setup. `voice setup` remembers interpreter/site/model/language/duration so later
 voice commands stay short; flags/environment override them and `--offline` remains
 per invocation. Interactive speech is reviewable literal draft input. Preserve
-composition on cancellation and require explicit `/send` for task dispatch.
+composition on cancellation; only an explicit `Enter` or `/send` submits the reviewed text.
 
 Source `1264b70beb69` passed the full-tree build, packaged voice checks, hidden
 ConPTY route and receipt-owned local installation. Follow the optional route in
@@ -154,8 +154,11 @@ a step complete; agent prose and exit0 alone cannot establish that evidence.
   Linux WNOWAIT ownership is source-reviewed/cross-compiled, not host-executed here;
   WSL returned E_UNEXPECTED and was not restarted.
 - Interactive input has a grapheme-aware inline editor, searchable selectors,
-  cancellable archive task finder and offline workflow view. Enter saves a draft
-  line; explicit `/send` submits. Actual Windows ConPTY paths and ANSI-emulated
+  cancellable archive task finder, read-only `/sessions` monitor and offline workflow
+  view. Nonempty `Enter` sends the reviewed composition; `/send` remains available.
+  Rich mode requires two `Ctrl+C` presses within two seconds to interrupt or exit.
+  New behavior requires the focused and packaged checks in the verification route;
+  earlier Windows ConPTY paths and ANSI-emulated
   layout review have evidence; owner usability/accessibility and Linux/macOS
   terminal behavior remain unexecuted. Keep drafts,
   selection, task identity and displayed CAS revision through history/navigation.

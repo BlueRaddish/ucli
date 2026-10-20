@@ -30,6 +30,38 @@ native-only/unverified routes. Unattended checks must not require completing bro
 consent. Explicit native status and already-authenticated reuse are separate from
 interactive login completion. Fixture/demo success remains labelled.
 
+## Current interaction continuation - October 20
+
+This section supersedes the earlier Enter-to-save and single-interrupt behavior
+below; dated receipts remain evidence of their original source versions. A
+nonempty `Enter` now submits the complete reviewed composition through the shared
+application service. `Alt+Enter`, `Shift+Enter` and `Ctrl+J` insert a newline.
+Bracketed paste and voice insert literal text for review and do not auto-submit.
+Restored drafts are editable; saving the rich composition replaces its prior
+version rather than duplicating it. Empty Enter starts no work, and `/send`
+remains an explicit submission action. Preflight or concurrency failure preserves
+input; a conflict keeps separate recovery text and does not silently retry.
+
+In rich mode, the first `Ctrl+C` offers a two-second confirmation window. A second
+press confirms interruption or exit; typing or Escape disarms it, and timeout
+restores the latest real notice. This UI guard does not change immediate SIGINT
+cancellation of noninteractive commands or release uncertain native work.
+
+`/models` separates discoverable models from executable routes. Claude aliases
+remain inspectable when sign-in or reviewed-version checks block use. Explicit
+AGY model refresh caches native names without authenticating or admitting AGY
+execution. Ordinary browsing uses cached metadata and cheap local path checks.
+Interactive login defaults to checking/reusing an existing native account; a
+separate sign-in action starts supported provider steps. GitHub remains local
+identity only. `/sessions` offers a read-only overview, detail and Back loop over
+saved activity; it neither selects a task nor executes, resumes or cancels work.
+Recorded running state does not establish executor liveness.
+
+These are implementation contracts, not a claim that a new packaged build or
+native execution passed. Run the focused and consuming paths in
+[verification](verification.md). Provider admission, account pins, permissions,
+unknown-outcome guards and the fixed input/footer layout remain unchanged.
+
 ## Implemented experimental boundary
 
 The root Go application now owns SQLite task/attempt/event state, revision guards,

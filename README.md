@@ -16,6 +16,8 @@ UCLI requires Go `1.27.2` and uses the Python `3.13` standard library for build 
 go run ./cmd/ucli --home .build/demo-home --demo
 ```
 
+Type a prompt and press `Enter` to receive a simulated local reply. Press `Tab` to discover actions, run `/models` to browse model choices, or run `/sessions` to inspect saved activity. The demo uses no provider quota.
+
 To run the repository checks and package binaries from a single command, invoke the developer runner with your Go executable path:
 
 ```sh
@@ -26,9 +28,7 @@ Packaged outputs are written to `.build/bin/ucli-windows-amd64.exe` (Windows), `
 
 ## Terminal Interface
 
-The terminal shell keeps context visible in a consistent frame: a fixed top header displays your current location, active model, and task context; a scrollable middle body supports `PageUp` and `PageDown` navigation; and notifications appear directly above the bottom composer. Dedicated panels for workflows, voice capture, and account login share the same shell layout.
-
-Input handling is built to protect unfinished work. Pressing `Enter` durably saves your current text as a draft rather than sending it; `/send` explicitly submits the prompt, and `EOF` never submits. Pressing `Tab` opens discoverable actions, while searchable selectors use the arrow keys, `Enter`, and `Escape` and preserve your in-progress composition until you confirm a selection. Passing `--no-color` or setting `NO_COLOR` removes color styling while preserving rich keyboard navigation, whereas `--plain` selects the static interface. Additional interface details are in [internal/cli/README.md](internal/cli/README.md).
+The fixed rich header shows the static cat mascot, version, and task context, while the framed bottom editor places notifications above the input box and the active model and working path below it. `PageUp` and `PageDown` scroll the output body. `Enter` submits a nonempty prompt, `Alt+Enter`, `Shift+Enter`, or `Ctrl+J` adds a newline, and an empty `Enter` never starts work. Restored unfinished text is editable, and paste or voice input inserts reviewable literal text without auto-submitting. `Tab` discovers actions and completes slash commands, and `/send` provides an explicit submit equivalent. Display flags preserve layout and input: `--no-color` and `NO_COLOR` strip color only, `--no-motion` keeps cats static, `--ascii` switches only cats to ASCII, and `--plain` uses the static line interface. Additional interface details are in [internal/cli/README.md](internal/cli/README.md).
 
 ## Local Storage, Workflows, and Voice
 
@@ -38,7 +38,7 @@ You can validate and inspect workflow definitions locally using `workflow check`
 
 ## Native Sign-In and Execution Boundaries
 
-Native sign-in uses `ucli login codex`, `ucli login claude`, and `ucli login github`. Credentials stay with the native vendor clients while UCLI caches account and model lists locally and refreshes status only when explicitly requested. GitHub sign-in reflects your local `gh` CLI identity rather than a hosted UCLI login or cloud sync service; see [docs/native-signin.md](docs/native-signin.md).
+Opening `/models` reports whether each provider binary is found, its cached sign-in state or unchecked status, and whether execution is supported as experimental or unavailable. Blocked models can be inspected without changing your selection. Ordinary listings avoid native processes and network calls; explicit setup or refresh reads native metadata during browsing. Claude aliases are inspectable, and the reviewed adapter targets version 2.1.299, so other installed binaries require review even when signed in natively. AGY can refresh and cache its native catalog, though UCLI sign-in verification and execution remain unavailable. GitHub reads local gh identity only, offering no AI models or hosted UCLI account, and credentials stay in native stores. Use `ucli login codex`, `ucli login claude`, or `ucli login github` for explicit native connection commands; see [docs/native-signin.md](docs/native-signin.md).
 
 Native execution envelopes for Codex `0.162.1` and Claude `2.1.299` on Windows x64 remain experimental, and there is no confirmed successful end-to-end native AI response yet. The read-only default disables native tools. Passing explicit `--permission sandbox` grants full local computer access through the native client with no extra OS isolation. Tasks that end with unknown outcomes keep a safety guard; native reconciliation is not implemented, so do not retry uncertain runs blindly. Follow-up prompts send only new input into fresh native sessions rather than replaying prior conversation automatically. Currently, `auto` selects the default supported model at the lowest supported effort. Account cycling, provider quota reservations, workflow execution, and a background model/effort decision agent remain future work.
 
