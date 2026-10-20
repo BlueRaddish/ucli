@@ -46,13 +46,13 @@ func TestPackagedConPTYRichTiming(t *testing.T) {
 				samples[kind] = append(samples[kind], last["elapsed_ms"].(float64))
 			}
 			measure(0, "Tab actions", "first_frame")
-			mark := p.send(t, "/models\r")
-			measure(mark, "Choose models", "open_models")
+			mark := p.send(t, "\x15/models\r")
+			measure(mark, "Choose a model", "open_models")
 			mark = p.send(t, "deep")
 			measure(mark, "Search: deep", "filter_models")
 			mark = p.send(t, "\x1b")
-			measure(mark, "Saved draft", "cancel_to_composer")
-			p.send(t, "/exit\r")
+			measure(mark, original.Draft, "cancel_to_composer")
+			p.send(t, "\x15/exit\r")
 			if code := p.wait(t); code != 0 {
 				t.Fatalf("timing child exit%d", code)
 			}

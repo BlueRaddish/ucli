@@ -153,7 +153,7 @@ func (s *session) openedTaskNotice() error {
 		if err := s.out.text("Opened draft (latest text):\n" + streamFragment(s.task.Draft) + "\n"); err != nil {
 			return err
 		}
-		text = "Task opened | /send submits the saved draft"
+		text = "Unsent message opened | review it, then Enter to send"
 	}
 	return s.out.notice(text, toneInfo)
 }

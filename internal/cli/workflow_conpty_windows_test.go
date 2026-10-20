@@ -30,7 +30,7 @@ func TestPackagedConPTYWorkflowPlanView(t *testing.T) {
 	}
 	p := startConPTYOptions(t, binary, home, cwd, false)
 	p.awaitVisible(t, 0, "Already saved work")
-	mark := p.send(t, "Pending composition 中")
+	mark := p.send(t, "\x1b[200~\nPending composition 中\x1b[201~")
 	p.awaitVisible(t, mark, "Pending composition")
 	openFile := func(path string) int {
 		mark := p.send(t, "\t")
@@ -62,9 +62,7 @@ func TestPackagedConPTYWorkflowPlanView(t *testing.T) {
 	if err != nil || before.Draft != original.Draft || before.Revision != original.Revision || len(attempts) != 0 {
 		t.Fatalf("workflow browsing changed task: %+v %+v %v", before, attempts, err)
 	}
-	mark = p.send(t, "\r")
-	p.awaitVisible(t, mark, "Pending composition")
-	p.send(t, "/exit\r")
+	p.send(t, "\x04")
 	if code := p.wait(t); code != 0 {
 		t.Fatalf("workflow view exit%d", code)
 	}

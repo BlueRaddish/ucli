@@ -70,7 +70,7 @@ func (s *session) selectTask(ctx context.Context) error {
 		}
 		s.taskSearch, s.taskCursor = query, cursor
 		if len(page.Tasks) == 0 && s.taskSearch == "" && s.taskCursor == "" {
-			_ = s.out.text("No saved tasks. Enter your work, then /send.\n")
+			_ = s.out.text("No saved sessions. Type a prompt and press Enter to start one.\n")
 			return nil
 		}
 		_ = s.out.text("Open a task (opening does not run it)\nLive list; newest first. /recent refreshes tasks that changed.\n")

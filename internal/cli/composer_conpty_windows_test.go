@@ -25,7 +25,7 @@ func TestPackagedConPTYRichComposer(t *testing.T) {
 	mark = p.send(t, "\r")
 	p.awaitVisible(t, mark, "Effort changes reasoning intent")
 	mark = p.send(t, "/models\r")
-	p.awaitVisible(t, mark, "Choose models")
+	p.awaitVisible(t, mark, "Choose a model")
 	mark = p.send(t, "deep")
 	p.awaitVisible(t, mark, "demo/deep")
 	mark = p.send(t, "\x1b")
@@ -33,14 +33,12 @@ func TestPackagedConPTYRichComposer(t *testing.T) {
 	p.resize(t, 60, 20)
 	const pasted = "/exit\nLiteral paste 中 👩🏽‍💻 e\u0301"
 	mark = p.send(t, "\x1b[200~"+pasted+"\x1b[201~\r")
-	p.awaitVisible(t, mark, "Saved draft")
-	mark = p.send(t, "/send\r")
-	p.awaitVisible(t, mark, "Follow up in this task")
+	p.awaitVisible(t, mark, "Ready for your next prompt")
 	mark = p.send(t, "/new\r")
 	p.awaitVisible(t, mark, "New task selected")
 	mark = p.send(t, "Partial 中 e\u0301")
 	p.awaitVisible(t, mark, "Partial")
-	p.send(t, "\x03")
+	p.send(t, "\x03\x03")
 	if code := p.wait(t); code != 130 {
 		t.Fatalf("partial interrupt exit=%d", code)
 	}
@@ -68,7 +66,7 @@ func TestPackagedConPTYRichComposer(t *testing.T) {
 		}
 	}
 	p = startConPTYOptions(t, binary, home, cwd, false)
-	p.awaitVisible(t, 0, "Restored a saved draft")
+	p.awaitVisible(t, 0, "Restored your unsent message")
 	p.awaitVisible(t, 0, "Partial")
 	p.send(t, "\x04")
 	if code := p.wait(t); code != 0 {

@@ -53,7 +53,7 @@ func TestPackagedConPTYVoiceDraftAndCancellation(t *testing.T) {
 	}
 	p := startConPTYOptions(t, binary, home, cwd, false)
 	p.awaitVisible(t, 0, "Already saved voice work")
-	mark := p.send(t, "Pending composition 中")
+	mark := p.send(t, "\x1b[200~\nPending composition 中\x1b[201~")
 	p.awaitVisible(t, mark, "Pending composition")
 	open := func() {
 		mark := p.send(t, "\t")
@@ -78,20 +78,20 @@ func TestPackagedConPTYVoiceDraftAndCancellation(t *testing.T) {
 		t.Fatalf("dictation saved or submitted before Enter: %+v %+v %v", before, attempts, err)
 	}
 	mark = p.send(t, "\r")
-	p.awaitVisible(t, mark, fixture.Expected)
+	p.awaitVisible(t, mark, "Ready for your next prompt")
 	mark = p.send(t, "/new\r")
 	p.awaitVisible(t, mark, "New task selected")
 	open()
 	mark = p.send(t, "\r")
 	p.awaitVisible(t, mark, fixture.Expected)
 	mark = p.send(t, "\r")
-	p.awaitVisible(t, mark, "Saved draft")
+	p.awaitVisible(t, mark, "Ready for your next prompt")
 	p.send(t, "/exit\r")
 	if code := p.wait(t); code != 0 {
 		t.Fatalf("voice loop exit%d", code)
 	}
 	after, attempts, err := a.Task(context.Background(), original.ID)
-	if err != nil || after.Draft != original.Draft+"\nPending composition 中\n"+fixture.Expected || after.Revision != original.Revision+1 || len(attempts) != 0 {
+	if err != nil || after.Draft != "" || len(attempts) != 1 || attempts[0].Input != original.Draft+"\nPending composition 中\n"+fixture.Expected || attempts[0].State != "complete" {
 		t.Fatalf("composition/literal transcript changed: %+v %+v %v", after, attempts, err)
 	}
 	tasks, err := a.Tasks(context.Background())
@@ -100,10 +100,10 @@ func TestPackagedConPTYVoiceDraftAndCancellation(t *testing.T) {
 	}
 	for _, task := range tasks {
 		_, attempts, err := a.Task(context.Background(), task.ID)
-		if err != nil || len(attempts) != 0 {
-			t.Fatalf("voice dispatched: %+v %v", attempts, err)
+		if err != nil || len(attempts) != 1 || attempts[0].State != "complete" {
+			t.Fatalf("voice Enter did not dispatch once: %+v %v", attempts, err)
 		}
-		if task.ID != original.ID && task.Draft != fixture.Expected {
+		if task.ID != original.ID && (task.Draft != "" || attempts[0].Input != fixture.Expected) {
 			t.Fatalf("leading slash transcript was treated as a command: %+v", task)
 		}
 	}

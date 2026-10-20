@@ -10,8 +10,8 @@ type slashSpec struct{ Name, Usage, Description string }
 // Help and completion share the supported global actions. Finder-local commands
 // and explicitly unavailable actions do not belong in this discovery catalog.
 var slashCommands = []slashSpec{
-	{"/send", "/send", "submit the saved draft"},
-	{"/draft", "/draft TEXT", "replace the draft; omit TEXT to inspect it"},
+	{"/send", "/send", "send a saved message (Enter sends your prompt)"},
+	{"/draft", "/draft TEXT", "save text without sending; omit TEXT to inspect it"},
 	{"/models", "/models", "search and choose the next model"},
 	{"/accounts", "/accounts", "search and choose an authorized account"},
 	{"/login", "/login [NAME]", "connect an existing account or start native sign-in"},
@@ -19,6 +19,7 @@ var slashCommands = []slashSpec{
 	{"/effort", "/effort", "choose auto, low, medium, high or max"},
 	{"/permission", "/permission", "choose a permission envelope separately from effort"},
 	{"/tasks", "/tasks", "search and page saved work without running it"},
+	{"/sessions", "/sessions", "watch sessions, progress and saved responses"},
 	{"/workflow", "/workflow FILE", "inspect an offline plan and step details; omit FILE to choose"},
 	{"/voice", "/voice [FILE]", "dictate or transcribe a PCM WAV into the draft; never send it"},
 	{"/result", "/result", "inspect the latest five attempts and saved results"},
@@ -37,7 +38,7 @@ func interactiveHelp() string {
 	for _, command := range slashCommands {
 		fmt.Fprintf(&text, "  %-14s %s\n", command.Usage, command.Description)
 	}
-	text.WriteString("Enter adds a line to the draft. /send submits it.\n" +
+	text.WriteString("Enter sends your prompt. Alt+Enter or Ctrl+J adds a new line.\n" +
 		"Commands apply only on a line by themselves or with their documented argument.\n" +
 		"Use /draft TEXT to enter text beginning with a slash.\n" +
 		"This foreground milestone has no live steering or detach.\n")

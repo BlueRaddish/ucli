@@ -20,6 +20,7 @@ type line struct {
 	text     string
 	complete bool
 	literal  bool // bracketed paste never invokes a slash action
+	replace  bool // a rich composition includes the restored unsent text
 	err      error
 }
 type lineInput struct {
@@ -133,15 +134,15 @@ func interact(ctx context.Context, a *app.App, p invocation, in io.Reader, o *ou
 		return o.problem(err)
 	}
 	if s.terminal == nil {
-		_ = o.text("UCLI - choose an agent and keep your work\nEnter adds a line to a saved draft; /send submits it. /help lists actions.\n")
+		_ = o.text("UCLI - work with your connected agents\nType a prompt and press Enter to send. /help lists actions.\n")
 		_ = o.text("Static line interface. There is no live steering or detach.\n")
 	} else {
-		_ = o.text("Describe your task below. Enter saves your draft; /send submits it.\nTab opens models, accounts, effort and other actions.\n")
+		_ = o.text("Type a prompt and press Enter to send. Alt+Enter adds a new line.\n/ shows commands. Tab opens models, accounts and sessions.\n")
 	}
 	if s.demo {
 		_ = o.text("DEMO enabled: agent responses use simulation or explicit native echo. Voice runs only when you choose it.\n")
 	} else {
-		_ = o.text("Use /login to connect a native account. /demo enables local simulation or explicit native echo.\n")
+		_ = o.text("Choose /login to connect an AI account, or /models to see models and setup steps.\n")
 	}
 	restored, err := a.RecentDraft(ctx, s.cwd)
 	if err != nil {
@@ -162,14 +163,14 @@ func interact(ctx context.Context, a *app.App, p invocation, in io.Reader, o *ou
 		if p.selection.Permission != "" {
 			s.selection.Permission = p.selection.Permission
 		}
-		_ = o.text("Restored a saved draft in this directory. Nothing has been submitted.\n")
+		_ = o.text("Restored your unsent message in this directory. Review it before sending.\n")
 		if s.terminal != nil && s.task.Draft != "" {
 			_ = o.text("Restored draft (latest text):\n" + streamFragment(s.task.Draft) + "\n")
-			_ = o.notice("Draft restored | /send submits it", toneInfo)
+			_ = o.notice("Unsent message restored | Enter sends after review", toneInfo)
 		}
 	}
 	if s.task == nil || s.task.Draft == "" {
-		_ = o.notice("Ready | Enter saves a draft; /send submits it", toneInfo)
+		_ = o.notice("Ready | type a prompt, then Enter to send", toneInfo)
 	}
 	_ = o.activity("wave", false)
 	for {
@@ -178,9 +179,14 @@ func interact(ctx context.Context, a *app.App, p invocation, in io.Reader, o *ou
 		if answer.err != nil {
 			// Preserve processed partial input even after cancellation, without
 			// reusing an already canceled execution context or executing commands.
-			if answer.text != "" {
+			if answer.text != "" || answer.replace && s.task != nil && s.task.Draft != "" {
 				saveCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 3*time.Second)
-				err := s.appendDraft(saveCtx, answer.text)
+				var err error
+				if answer.replace {
+					err = s.storeDraft(saveCtx, answer.text, false)
+				} else {
+					err = s.appendDraft(saveCtx, answer.text)
+				}
 				cancel()
 				if err != nil {
 					return o.problem(err)
@@ -196,9 +202,9 @@ func interact(ctx context.Context, a *app.App, p invocation, in io.Reader, o *ou
 			continue
 		}
 		if answer.literal || !strings.HasPrefix(answer.text, "/") {
-			if err := s.appendDraft(ctx, answer.text); err != nil {
+			if err := s.submitPrompt(ctx, answer.text, answer.replace); err != nil {
 				code := o.problem(err)
-				if s.recoveryID == "" {
+				if code == 9 || code == 124 || code == 130 || ctx.Err() != nil {
 					return code
 				}
 			}
@@ -247,7 +253,7 @@ func (s *session) status() {
 	if s.recoveryID != "" {
 		_ = s.out.text("Choices: /tasks /new /result /help /exit\nSend blocked until you choose a task explicitly\n> ")
 	} else {
-		_ = s.out.text("Choices: /models /accounts /effort /tasks /voice /workflow /new /result /help /exit\nSend: /send | Enter adds text to the draft\n> ")
+		_ = s.out.text("Choices: /models /login /sessions /tasks /voice /workflow /new /help /exit\nEnter sends your prompt\n> ")
 	}
 }
 
@@ -263,6 +269,20 @@ func (s *session) appendDraft(ctx context.Context, text string) error {
 }
 
 func (s *session) saveDraft(ctx context.Context, text string) error {
+	return s.storeDraft(ctx, text, true)
+}
+
+func (s *session) storeDraft(ctx context.Context, text string, announce bool) error {
+	if s.recoveryID != "" {
+		if s.task != nil && text == s.task.Draft {
+			return nil // This exact composition is already in the recovery draft.
+		}
+		_ = s.out.text("Your recovery message is safe. Copy these additional edits before switching sessions:\n" + text + "\n")
+		return core.Problem("draft_conflict", "Open /tasks or /new before editing this session.", 5)
+	}
+	if s.task != nil && s.task.Draft == text && s.task.Selection.WithDefaults() == s.selection.WithDefaults() {
+		return nil // Read-only restore/navigation must not create a new revision.
+	}
 	id := ""
 	revision := 0
 	previous := ""
@@ -281,7 +301,7 @@ func (s *session) saveDraft(ctx context.Context, text string) error {
 		return err
 	}
 	s.task = &task
-	if s.terminal != nil {
+	if s.terminal != nil && announce {
 		if text != previous {
 			added := text
 			if previous != "" && strings.HasPrefix(text, previous+"\n") {
@@ -289,7 +309,7 @@ func (s *session) saveDraft(ctx context.Context, text string) error {
 			}
 			_ = s.out.text("Saved draft:\n" + added + "\n")
 		}
-		_ = s.out.notice("Draft saved | /send submits it", toneSuccess)
+		_ = s.out.notice("Unsent message saved | review it, then Enter to send", toneInfo)
 	}
 	return nil
 }
@@ -323,7 +343,7 @@ func (s *session) action(ctx context.Context, text string) (bool, error) {
 			return false, core.Problem("draft_conflict", "Choose /tasks or /new before changing or sending this task; the recovery draft remains unsent.", 5)
 		case "/draft":
 			if hasArgument {
-				_ = s.out.text("Replacement text was not saved; copy it before choosing a task:\n" + argument + "\n")
+				_ = s.out.text("Copy these additional edits before choosing another session:\n" + argument + "\n")
 				return false, core.Problem("draft_conflict", "Choose /tasks or /new before replacing the draft.", 5)
 			}
 		}
@@ -339,7 +359,7 @@ func (s *session) action(ctx context.Context, text string) (bool, error) {
 		s.historyOpen, s.historyNext = false, 0
 		s.selection = core.Defaults()
 		_ = s.out.text("New task selected. Earlier tasks and drafts remain in /tasks.\n")
-		_ = s.out.notice("New task | enter text to create a draft", toneInfo)
+		_ = s.out.notice("New session | type a prompt, then Enter to send", toneInfo)
 	case "/demo":
 		s.demo = true
 		_ = s.out.text("DEMO enabled: agent responses use simulation or explicit native echo. Voice runs only when you choose it.\n")
@@ -348,7 +368,7 @@ func (s *session) action(ctx context.Context, text string) (bool, error) {
 			return false, s.saveDraft(ctx, argument)
 		}
 		if s.task == nil || s.task.Draft == "" {
-			_ = s.out.text("No saved draft. Type your task, then /send.\n")
+			_ = s.out.text("No unsent message. Type a prompt and press Enter to send it.\n")
 		} else {
 			label := "Saved draft:\n"
 			if s.recoveryID != "" {
@@ -362,6 +382,8 @@ func (s *session) action(ctx context.Context, text string) (bool, error) {
 		return false, s.connectionAction(ctx, verb, strings.TrimSpace(argument))
 	case "/tasks":
 		return false, s.selectTask(ctx)
+	case "/sessions":
+		return false, s.monitorSessions(ctx)
 	case "/voice":
 		text, err := s.voiceText(ctx, argument)
 		if err != nil {
@@ -371,7 +393,7 @@ func (s *session) action(ctx context.Context, text string) (bool, error) {
 			if err := s.appendDraft(ctx, text); err != nil {
 				return false, err
 			}
-			_ = s.out.text("Voice text saved for review. Nothing was sent; /send submits the saved draft.\n")
+			_ = s.out.text("Voice text is ready to review in the prompt. Enter sends it when you are ready.\n")
 		}
 	case "/workflow":
 		path := argument
@@ -416,23 +438,7 @@ func (s *session) action(ctx context.Context, text string) (bool, error) {
 		s.historyOpen, s.historyNext = false, 0
 		return false, s.refresh(ctx)
 	case "/send":
-		if s.task == nil || strings.TrimSpace(s.task.Draft) == "" {
-			return false, usageError("type the work to do before /send")
-		}
-		submitted := s.task.Draft
-		s.historyOpen, s.historyNext = false, 0
-		_, runErr := runTask(ctx, s.app, s.options(), s.out)
-		if runErr != nil && s.markConflict(runErr, submitted) {
-			return false, runErr
-		}
-		if err := s.refresh(ctx); err != nil {
-			return false, err
-		}
-		s.selection = s.task.Selection.WithDefaults()
-		if runErr != nil {
-			return false, runErr
-		}
-		_ = s.out.text("Follow up in this task, inspect /result, or choose /new for fresh context.\n")
+		return false, s.sendDraft(ctx)
 	case "/detach", "/native", "/steer", "/cancel", "/retry", "/resume":
 		return false, usageError(verb + " is unavailable in this foreground milestone; /result inspects work, /recover reconciles a stopped demo, Ctrl+C interrupts the owned run")
 	default:
@@ -528,7 +534,10 @@ func (s *session) choose(ctx context.Context, title string, rows []choice, curre
 }
 
 func (s *session) selectSetting(ctx context.Context, field string) error {
-	if field == "/models" || field == "/accounts" {
+	if field == "/models" {
+		return s.selectModel(ctx)
+	}
+	if field == "/accounts" {
 		if _, err := s.app.LinkedConnections(ctx); err != nil {
 			return connectionProblem(err)
 		}
@@ -536,17 +545,12 @@ func (s *session) selectSetting(ctx context.Context, field string) error {
 	rows := []choice{{"auto", "auto - choose within authorized, supported routes"}}
 	current := ""
 	switch field {
-	case "/models":
-		current = s.selection.Model
-		for _, model := range s.app.Models() {
-			rows = append(rows, choice{model.ID, model.ID + " - " + model.Label + " | " + model.Runtime + " | effort " + modelEfforts(model) + " | " + model.Reason})
-		}
 	case "/accounts":
 		current = s.selection.Account
 		for _, account := range s.app.Accounts() {
-			rows = append(rows, choice{account.ID, account.ID + " - " + account.Label + " | " + account.Runtime + " | " + account.Status})
+			rows = append(rows, choice{account.ID, account.Label + " - " + account.Runtime + " | " + account.Status})
 		}
-		rows = append(rows, choice{"__connect__", "Connect another account - native sign-in"})
+		rows = append(rows, choice{"__connect__", "Connect another AI account - use an existing login or sign in"})
 	case "/effort":
 		current = s.selection.Effort
 		for _, effort := range []string{"low", "medium", "high", "max"} {
@@ -564,9 +568,6 @@ func (s *session) selectSetting(ctx context.Context, field string) error {
 		return s.connectionAction(ctx, "/login", "")
 	}
 	switch field {
-	case "/models":
-		s.selection.Model = value
-		_ = s.out.text("Model choice recorded. Runtime changes may change native tools, skills and context.\nNative follow-ups start fresh sessions; prior prompts/results stay in local history.\n/explain shows the route before /send; native resume is unavailable.\n")
 	case "/accounts":
 		s.selection.Account = value
 		_ = s.out.text("Account choice recorded. Auto never broadens the authorized account set.\n")
@@ -582,7 +583,7 @@ func (s *session) selectSetting(ctx context.Context, field string) error {
 		}
 	}
 	if s.task != nil && s.task.Draft != "" {
-		if err := s.saveDraft(ctx, s.task.Draft); err != nil {
+		if err := s.storeDraft(ctx, s.task.Draft, false); err != nil {
 			return err
 		}
 	}

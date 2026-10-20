@@ -82,6 +82,16 @@ func connectionCommand(ctx context.Context, p invocation, in io.Reader, o *outpu
 		if p.id == "" {
 			return 0
 		}
+		action, err := s.chooseConnectionAction(ctx, p.id)
+		if err != nil {
+			return o.problem(connectionProblem(err))
+		}
+		if action == "" {
+			return 0
+		}
+		if action == "check" {
+			p.command = "accounts add"
+		}
 	}
 	if err := applyConnectionCommand(ctx, svc, p, o, o.terminal); err != nil {
 		if err == io.EOF {
@@ -242,11 +252,50 @@ func showConnection(item connections.Connection, o *output) error {
 	if o.json {
 		return o.data("connection", item)
 	}
-	return o.text(fmt.Sprintf("%s | %s | %s | %s\nNative account reference; isolation %s. Use --account %s for tasks.\n", item.ID, item.Label, item.Provider, item.AuthState, item.Isolation, item.ID))
+	next := "Open /models to choose a supported model. Identity and runtime compatibility are checked again before sending."
+	switch {
+	case item.Provider == "agy":
+		next = fmt.Sprintf("%d native model names cached. AGY execution and sign-in verification are not supported in UCLI; use Antigravity itself to run them.", len(item.Models))
+	case item.Provider == "github":
+		next = "This connects your local GitHub CLI identity only. It supplies no AI models and does not create a hosted UCLI account."
+	case item.AuthState == "signed-out":
+		next = "Your native account is signed out. Choose Sign in in /login to complete the provider's browser/device steps."
+	case item.AuthState == "identity-changed":
+		next = "The native account changed. This connection is blocked; explicitly unlink and reconnect the intended account."
+	case item.AuthState != "authenticated":
+		next = "Sign-in was not confirmed. Check the native client, then refresh here; another login may not be needed."
+	}
+	return o.text(fmt.Sprintf("%s | %s | %s\n%s\nConnection reference: %s (native credentials stay with the provider).\n", item.Label, providerName(item.Provider), authenticationLabel(item.AuthState), next, item.ID))
 }
 
 func (s *session) chooseLoginProvider(ctx context.Context) (string, error) {
-	return s.choose(ctx, "Connect an account — your draft is kept", []choice{{"codex", "Codex — reuse native sign-in"}, {"claude", "Claude — reuse native sign-in"}, {"github", "GitHub — connect GitHub CLI identity"}, {"agy", "Antigravity — inspect native connection support"}})
+	return s.choose(ctx, "Connect an account — your draft is kept", []choice{{"codex", "Codex - use your ChatGPT sign-in in the Codex CLI"}, {"claude", "Claude Code - use your Claude sign-in; reviewed CLI version required"}, {"github", "GitHub - local GitHub CLI identity, no AI models"}, {"agy", "Antigravity (AGY) - inspect model names; UCLI execution unavailable"}})
+}
+
+func providerName(id string) string {
+	switch id {
+	case "codex":
+		return "Codex"
+	case "claude":
+		return "Claude Code"
+	case "agy":
+		return "Antigravity (AGY)"
+	case "github":
+		return "GitHub"
+	default:
+		return "Native account"
+	}
+}
+
+func (s *session) chooseConnectionAction(ctx context.Context, identifier string) (string, error) {
+	name := providerName(nativeProvider(identifier))
+	rows := []choice{{"check", "Use the account already signed in on this computer - check and link only"}}
+	if nativeProvider(identifier) == "agy" {
+		rows = []choice{{"check", "Inspect Antigravity model names - no UCLI task execution or sign-in"}}
+	} else {
+		rows = append(rows, choice{"login", "Sign in through " + name + " - browser/device steps if needed"})
+	}
+	return s.choose(ctx, name+" - choose what to do; your draft is kept", rows)
 }
 
 func (s *session) connectionAction(ctx context.Context, verb, identifier string) error {
@@ -265,6 +314,29 @@ func (s *session) connectionAction(ctx context.Context, verb, identifier string)
 		return connectionProblem(err)
 	}
 	p := invocation{command: strings.TrimPrefix(verb, "/"), id: identifier, home: s.app.Home}
+	if verb == "/login" {
+		action, err := s.chooseConnectionAction(ctx, identifier)
+		if err != nil || action == "" {
+			return err
+		}
+		if action == "check" {
+			if nativeProvider(identifier) != "" {
+				p.command = "accounts add"
+			} else {
+				var screen taskPickerTerminal
+				if s.terminal != nil {
+					screen = s.terminal
+				}
+				item, err := performLoginOperation(ctx, func(ctx context.Context, _ func(connections.LoginEvent) error) (connections.Connection, error) {
+					return svc.Status(ctx, identifier)
+				}, s.out, screen)
+				if err == nil {
+					err = showConnection(item, s.out)
+				}
+				return s.loginResult(err)
+			}
+		}
+	}
 	return s.loginResult(applyConnectionCommand(ctx, svc, p, s.out, s.terminal))
 }
 

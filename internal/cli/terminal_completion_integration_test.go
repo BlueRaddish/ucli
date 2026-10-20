@@ -41,6 +41,9 @@ func driveCompletionComposer(t *testing.T, width, height int, events ...keyEvent
 	terminal := &terminalUI{program: capture, events: make(chan keyEvent, 64), done: make(chan struct{}), interrupt: cancel}
 	terminal.width.Store(int64(width))
 	terminal.height.Store(int64(height))
+	// These cases intentionally replace the restored message before entering a
+	// command. Clearing the editor alone must not mutate its saved counterpart.
+	terminal.enqueue(keyEvent{kind: keyClear})
 	for _, event := range events {
 		terminal.enqueue(event)
 	}

@@ -246,12 +246,12 @@ func savedTasks(t *testing.T, home string) []core.Task {
 
 func TestInteractiveChoicesFollowupNewAndHistory(t *testing.T) {
 	home, cwd := t.TempDir(), t.TempDir()
-	input := "/models\ndeep\n1\n/effort\nmedium\n1\n/accounts\nlocal\n1\nFirst line\nSecond line\n/send\nFollow up\n/send\n/result\n/new\nNew draft\n/exit\n"
+	input := "/models\ndeep\n1\n/effort\nmedium\n1\n/accounts\nlocal\n1\nFirst prompt\n\nFollow up\n/result\n/new\n/draft New draft\n/exit\n"
 	code, text := runInteractive(t, home, cwd, input, true)
 	if code != 0 {
 		t.Fatalf("%d %s", code, text)
 	}
-	for _, want := range []string{"Send: /send", "Runtime changes", "First line", "Follow up", "New task selected", "DEMO enabled"} {
+	for _, want := range []string{"Model selected", "First prompt", "Follow up", "New task selected", "DEMO enabled"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("missing %q in %s", want, text)
 		}
@@ -268,7 +268,7 @@ func TestInteractiveChoicesFollowupNewAndHistory(t *testing.T) {
 			}
 			continue
 		}
-		if len(attempts) != 2 || attempts[0].Input != "First line\nSecond line" || attempts[1].Input != "Follow up" || attempts[1].Requested.Model != "demo/deep" {
+		if len(attempts) != 2 || attempts[0].Input != "First prompt" || attempts[1].Input != "Follow up" || attempts[1].Requested.Model != "demo/deep" {
 			t.Fatalf("unexpected thread: %+v", attempts)
 		}
 	}
@@ -276,7 +276,7 @@ func TestInteractiveChoicesFollowupNewAndHistory(t *testing.T) {
 
 func TestInteractiveFailureAndEOFDraftRestore(t *testing.T) {
 	home, cwd := t.TempDir(), t.TempDir()
-	code, text := runInteractive(t, home, cwd, "Unsent work\n/send\n", false)
+	code, text := runInteractive(t, home, cwd, "Unsent work\n/exit\n", false)
 	if code != 0 || !strings.Contains(text, "Connect a native account") {
 		t.Fatalf("%d %s", code, text)
 	}
@@ -285,19 +285,19 @@ func TestInteractiveFailureAndEOFDraftRestore(t *testing.T) {
 		t.Fatalf("drafts: %+v", tasks)
 	}
 	code, text = runInteractive(t, home, cwd, "/demo\n/send\n/exit\n", false)
-	if code != 0 || !strings.Contains(text, "Restored a saved draft") {
+	if code != 0 || !strings.Contains(text, "Restored your unsent message") {
 		t.Fatalf("%d %s", code, text)
 	}
 	_, attempts := taskReceipt(t, home, tasks[0].ID)
 	if len(attempts) != 1 {
 		t.Fatal("did not recover same draft")
 	}
-	code, text = runInteractive(t, home, cwd, "/new\nPartial line\n/send", true)
+	code, text = runInteractive(t, home, cwd, "/new\nPartial line /send", true)
 	if code != 0 {
 		t.Fatalf("%d %s", code, text)
 	}
 	for _, task := range savedTasks(t, home) {
-		if task.Draft == "Partial line\n/send" {
+		if task.Draft == "Partial line /send" {
 			_, a := taskReceipt(t, home, task.ID)
 			if len(a) != 0 {
 				t.Fatal("EOF autosubmitted")
@@ -336,8 +336,11 @@ func TestInteractiveContextInterruptKeepsAcknowledgedDraft(t *testing.T) {
 	reader, writer := io.Pipe()
 	defer reader.Close()
 	defer writer.Close()
-	go func() { _, _ = io.WriteString(writer, "Keep this draft\n") }()
-	out := &triggerWriter{trigger: "Saved draft:\nKeep this draft", action: cancel}
+	if _, err := a.Draft(ctx, "", "Keep this draft", cwd, core.Defaults()); err != nil {
+		t.Fatal(err)
+	}
+	// Interrupt while reviewing already saved work, before any send gesture.
+	out := &triggerWriter{trigger: "Keep this draft", action: cancel}
 	o := newOutput(out, out, false, cancel)
 	code := interact(ctx, a, invocation{cwd: cwd, demo: true}, reader, o)
 	if err := o.finish(); err != nil {
@@ -445,7 +448,10 @@ func TestInteractiveConcurrentDraftConflictRequiresExplicitSelection(t *testing.
 	defer writer.Close()
 	done := make(chan error, 1)
 	var originalID string
-	out := &triggerWriter{trigger: "Saved draft:\nOriginal draft"}
+	if _, err := a.Draft(ctx, "", "Original draft", cwd, core.Defaults()); err != nil {
+		t.Fatal(err)
+	}
+	out := &triggerWriter{trigger: "Original draft"}
 	out.action = func() {
 		defer writer.Close()
 		tasks, err := other.Tasks(ctx)
@@ -466,7 +472,6 @@ func TestInteractiveConcurrentDraftConflictRequiresExplicitSelection(t *testing.
 		_, err = io.WriteString(writer, "/result\n/older\n/tasks\n0\nStale addition\n/send\n/draft replacement\n/result\n/tasks\nRecovered draft\n1\n/send\n/exit\n")
 		done <- err
 	}
-	go func() { _, _ = io.WriteString(writer, "Original draft\n") }()
 	o := newOutput(out, out, false, cancel)
 	code := interact(ctx, a, invocation{cwd: cwd, demo: true}, reader, o)
 	if err := o.finish(); err != nil {
@@ -478,7 +483,7 @@ func TestInteractiveConcurrentDraftConflictRequiresExplicitSelection(t *testing.
 	if code != 0 {
 		t.Fatalf("%d %s", code, out.String())
 	}
-	for _, want := range []string{"Draft conflict", "Unsent input (saved separately)", "Editing and Send are blocked", "Replacement text was not saved", "Opened task"} {
+	for _, want := range []string{"Draft conflict", "Unsent input (saved separately)", "Editing and Send are blocked", "Copy these additional edits", "Opened task"} {
 		if !strings.Contains(out.String(), want) {
 			t.Fatalf("missing %q in %s", want, out.String())
 		}

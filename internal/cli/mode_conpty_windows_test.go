@@ -50,7 +50,7 @@ func TestConPTYConsoleModeRestoration(t *testing.T) {
 	p.await(t, mark, "Console mode roundtrip 1 passed")
 	p.await(t, mark, "Tab actions")
 	mark = p.send(t, "Second run preserved every key\r")
-	p.await(t, mark, "Saved draft")
+	p.await(t, mark, "Ready for your next prompt")
 	mark = p.send(t, "/exit\r")
 	p.await(t, mark, "Console mode roundtrip 2 passed")
 	if code := p.wait(t); code != 0 {
@@ -62,7 +62,11 @@ func TestConPTYConsoleModeRestoration(t *testing.T) {
 	}
 	defer a.Close()
 	tasks, err := a.Tasks(context.Background())
-	if err != nil || len(tasks) != 1 || tasks[0].Draft != "Second run preserved every key" {
+	if err != nil || len(tasks) != 1 || tasks[0].Draft != "" {
 		t.Fatalf("reader survived shutdown or ate next-session input: %+v %v", tasks, err)
+	}
+	_, attempts, err := a.Task(context.Background(), tasks[0].ID)
+	if err != nil || len(attempts) != 1 || attempts[0].Input != "Second run preserved every key" || attempts[0].State != "complete" {
+		t.Fatalf("second entrypoint did not submit exactly once: %+v %v", attempts, err)
 	}
 }

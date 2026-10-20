@@ -143,12 +143,12 @@ func TestTaskSummarySearchCursorAndBounds(t *testing.T) {
 func TestInteractiveTaskFinderRestoresOldDraftAndRetainsNavigation(t *testing.T) {
 	home, cwd := t.TempDir(), t.TempDir()
 	original, alternate := taskArchiveFixture(t, home, cwd)
-	input := "/tasks\n/older\n0\n/tasks\n/search Alternate work\n0\n/tasks\n" + strings.Repeat("q", 257) + "\n1\nFollowed from finder\n/exit\n"
+	input := "/tasks\n/older\n0\n/tasks\n/search Alternate work\n0\n/tasks\n" + strings.Repeat("q", 257) + "\n1\n/draft Followed from finder\n/exit\n"
 	code, text := runInteractive(t, home, cwd, input, true)
 	if code != 0 {
 		t.Fatalf("finder: %d %.2000s", code, text)
 	}
-	for _, want := range []string{"Restored a saved draft", "Saved draft:\nAncient comfort task", "model demo/deep | effort high", "/older Older tasks", "/search TEXT", "Opened task in " + alternate.Workspace.Dir, "model demo/fast | effort low"} {
+	for _, want := range []string{"Restored your unsent message", "Saved draft:\nAncient comfort task", "model demo/deep | effort high", "/older Older tasks", "/search TEXT", "Opened task in " + alternate.Workspace.Dir, "model demo/fast | effort low"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("missing %q in finder output", want)
 		}
@@ -161,7 +161,7 @@ func TestInteractiveTaskFinderRestoresOldDraftAndRetainsNavigation(t *testing.T)
 		t.Fatalf("browsing changed active task: %+v", unchanged)
 	}
 	opened, attempts := taskReceipt(t, home, alternate.ID)
-	if opened.Draft != alternate.Draft+"\nFollowed from finder" || opened.Revision != alternate.Revision+1 || opened.Selection != alternate.Selection || len(attempts) != 0 {
+	if opened.Draft != "Followed from finder" || opened.Revision != alternate.Revision+1 || opened.Selection != alternate.Selection || len(attempts) != 0 {
 		t.Fatalf("explicit choice lost identity/pins or ran work: %+v", opened)
 	}
 	code, text = runInteractive(t, home, cwd, "/tasks\nNo matching saved task\n", true)

@@ -49,7 +49,7 @@ func TestPackagedConPTY(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if strings.Contains(p.snapshot(), "Send: /send") {
+		if strings.Contains(p.snapshot(), "Enter sends your prompt") {
 			t.Fatal("CREATE_NO_WINDOW unexpectedly reached interactive prompt")
 		}
 		if state != uint32(windows.WAIT_TIMEOUT) && state != windows.WAIT_OBJECT_0 {
@@ -58,23 +58,21 @@ func TestPackagedConPTY(t *testing.T) {
 	})
 	if !t.Run("task_loop_and_resize", func(t *testing.T) {
 		p := startConPTY(t, binary, home, cwd, false)
-		p.await(t, 0, "Send: /send")
+		p.await(t, 0, "Enter sends your prompt")
 		mark := p.send(t, "/models\r")
-		p.await(t, mark, "Choose models")
+		p.await(t, mark, "Choose a model")
 		mark = p.send(t, "deep\r")
 		p.await(t, mark, "demo/deep")
 		mark = p.send(t, "1\r")
-		p.await(t, mark, "Model choice recorded")
+		p.await(t, mark, "Model selected")
 		if err := windows.ResizePseudoConsole(p.console, windows.Coord{X: 60, Y: 20}); err != nil {
 			t.Fatal(err)
 		}
 		mark = p.send(t, "ConPTY task one 한글 😀\r")
-		p.await(t, mark, "Saved draft:")
-		mark = p.send(t, "/send\r")
-		p.await(t, mark, "Follow up in this task")
+		p.await(t, mark, "Ready for your next prompt")
 		mark = p.send(t, "/new\r")
 		p.await(t, mark, "New task selected")
-		mark = p.send(t, "Second unsent draft\r")
+		mark = p.send(t, "/draft Second unsent draft\r")
 		p.await(t, mark, "Saved draft:")
 		mark = p.send(t, "/tasks\r")
 		p.await(t, mark, "Open a task")
@@ -93,7 +91,7 @@ func TestPackagedConPTY(t *testing.T) {
 	}
 	t.Run("restart_and_etx", func(t *testing.T) {
 		p := startConPTY(t, binary, home, cwd, false)
-		p.await(t, 0, "Restored a saved draft")
+		p.await(t, 0, "Restored your unsent message")
 		p.await(t, 0, "Second unsent draft")
 		p.send(t, "\x03")
 		if code := p.wait(t); code != 130 {
@@ -102,8 +100,8 @@ func TestPackagedConPTY(t *testing.T) {
 	})
 	t.Run("restart_and_eof", func(t *testing.T) {
 		p := startConPTY(t, binary, home, cwd, false)
-		p.await(t, 0, "Restored a saved draft")
-		p.await(t, 0, "Send: /send")
+		p.await(t, 0, "Restored your unsent message")
+		p.await(t, 0, "Enter sends your prompt")
 		// Ctrl+Z followed by Enter is the Windows console's cooked EOF path.
 		p.send(t, "\x1a\r")
 		if code := p.wait(t); code != 0 {
@@ -181,7 +179,7 @@ func TestPackagedConPTYTaskFinder(t *testing.T) {
 		}
 	}
 	p := startConPTY(t, binary, home, cwd, false)
-	p.await(t, 0, "Restored a saved draft")
+	p.await(t, 0, "Restored your unsent message")
 	p.await(t, 0, "Finder oldest draft")
 	p.await(t, 0, "Next: model demo/deep | effort high")
 	mark := p.send(t, "/tasks\r")
@@ -211,9 +209,9 @@ func TestPackagedConPTYTaskFinder(t *testing.T) {
 	p.await(t, mark, "Opened task in ")
 	p.await(t, mark, "Task "+literal.ID+" | draft | revision 1")
 	p.await(t, mark, "Next: model demo/fast | effort low")
-	mark = p.send(t, "Terminal saved addition\r")
+	mark = p.send(t, "/draft Terminal saved addition\r")
 	p.await(t, mark, "Task "+literal.ID+" | draft | revision 2")
-	p.await(t, mark, "Send: /send")
+	p.await(t, mark, "Enter sends your prompt")
 	p.send(t, "\x03")
 	if code := p.wait(t); code != 130 {
 		t.Fatalf("finder ETX exit=%d, want130", code)
@@ -233,7 +231,7 @@ func TestPackagedConPTYTaskFinder(t *testing.T) {
 				t.Fatalf("finder overwrote external edit or pins: %+v", task)
 			}
 		case literal.ID:
-			if task.Draft != literal.Draft+"\nTerminal saved addition" || task.Revision != literal.Revision+1 || task.Selection != literal.Selection || task.Workspace != literal.Workspace {
+			if task.Draft != "Terminal saved addition" || task.Revision != literal.Revision+1 || task.Selection != literal.Selection || task.Workspace != literal.Workspace {
 				t.Fatalf("explicit choice lost draft identity/pins: %+v", task)
 			}
 		default:
@@ -270,7 +268,7 @@ func TestPackagedConPTYConnectionDiscoveryAndSandbox(t *testing.T) {
 	p := startConPTYOptions(t, binary, home, cwd, false)
 	p.awaitVisible(t, 0, seed.Draft)
 	const composition = "Unsent composition stays here"
-	mark := p.send(t, composition)
+	mark := p.send(t, "\x1b[200~\n"+composition+"\x1b[201~")
 	p.awaitVisible(t, mark, composition)
 	mark = p.send(t, "\t")
 	p.awaitVisible(t, mark, "Actions")

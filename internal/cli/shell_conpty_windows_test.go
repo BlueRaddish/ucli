@@ -82,6 +82,7 @@ func TestPackagedConPTYFixedShell(t *testing.T) {
 			}
 			p := startConPTYOptions(t, binary, home, cwd, false, options...)
 			p.awaitVisible(t, 0, "Tab actions")
+			p.send(t, "\x15")
 			frame := awaitShellFrame(t, p, p.resizes, "initial", func(f shellCapturedFrame) bool {
 				return shellFramePrompt(f, 80, 24, "", ">") && shellFrameFooter(f, "auto", filepath.Base(cwd)) && shellFrameWelcomeCats(f, mode == "ascii-static")
 			})
@@ -93,7 +94,7 @@ func TestPackagedConPTYFixedShell(t *testing.T) {
 			awaitShellFrame(t, p, p.resizes, "output-overflow", func(f shellCapturedFrame) bool {
 				return shellFrameBase(f, 80, 24) && strings.Contains(f.Rows[23], "Tab actions") && strings.Contains(strings.Join(f.Rows, "\n"), "PgUp/PgDn")
 			})
-			mark = p.send(t, "/workflow missing-shell-plan.json\r")
+			mark = p.send(t, "\x15/workflow missing-shell-plan.json\r")
 			p.awaitVisible(t, mark, "Cannot read workflow file")
 			frame = awaitShellFrame(t, p, p.resizes, "error-adjacent", func(f shellCapturedFrame) bool {
 				return shellFramePrompt(f, 80, 24, "[Error]", ">")
@@ -102,7 +103,7 @@ func TestPackagedConPTYFixedShell(t *testing.T) {
 
 			const draft = "Unsent shell composition \u4e2d e\u0301"
 			const visibleDraft = "Unsent shell composition \u4e2d"
-			mark = p.send(t, "\x1b[200~"+draft+"\x1b[201~")
+			mark = p.send(t, "\x15\x1b[200~"+draft+"\x1b[201~")
 			p.awaitVisible(t, mark, "Unsent shell composition")
 			before := awaitShellFrame(t, p, p.resizes, "composition", func(f shellCapturedFrame) bool {
 				return shellFramePrompt(f, 80, 24, "[Error]", visibleDraft)
@@ -142,12 +143,12 @@ func TestPackagedConPTYFixedShell(t *testing.T) {
 			if err != nil || got.Draft != seed.Draft || got.Revision != seed.Revision || got.Selection != seed.Selection || len(attempts) != 0 {
 				t.Fatalf("viewing changed durable task: %+v attempts=%d err=%v", got, len(attempts), err)
 			}
-			p.send(t, "\x03")
+			p.send(t, "\x03\x03")
 			if code := p.wait(t); code != 130 {
 				t.Fatalf("interrupt exit=%d", code)
 			}
 			got, attempts, err = a.Task(ctx, seed.ID)
-			if err != nil || got.Draft != seed.Draft+"\n"+draft+continuation || got.Revision != seed.Revision+1 || got.Selection != seed.Selection || len(attempts) != 0 {
+			if err != nil || got.Draft != draft+continuation || got.Revision != seed.Revision+1 || got.Selection != seed.Selection || len(attempts) != 0 {
 				t.Fatalf("exit lost composition or dispatched work: %+v attempts=%d err=%v", got, len(attempts), err)
 			}
 		})

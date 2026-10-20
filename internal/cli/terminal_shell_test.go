@@ -76,7 +76,7 @@ func shellHarness(t *testing.T, width, height int, color bool) (*terminalUI, *sh
 
 func TestFixedShellConsumesOutputMenusAndFailureWithoutMovingComposer(t *testing.T) {
 	u, p := shellHarness(t, 80, 24, false)
-	composer := terminalFrame{Lines: []terminalLine{{Text: "> draft stays"}, {Text: "Tab actions · Enter save", Dim: true}}, CursorRow: 0, CursorCol: 13}
+	composer := terminalFrame{Lines: []terminalLine{{Text: "> draft stays"}, {Text: "Tab actions · Enter send", Dim: true}}, CursorRow: 0, CursorCol: 13}
 	if err := u.paintComposer(composer); err != nil {
 		t.Fatal(err)
 	}

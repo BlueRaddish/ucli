@@ -12,7 +12,7 @@ import (
 )
 
 // This consumes the packaged entrypoint in an owned hidden console. Every
-// operation is local UI or synthetic draft storage; no task is dispatched.
+// operation is local UI, local draft storage, or the explicit demo executor.
 func TestPackagedConPTYSlashCompletion(t *testing.T) {
 	requireVisibleQA(t)
 	binary := os.Getenv("UCLI_CONPTY_BINARY")
@@ -51,11 +51,16 @@ func TestPackagedConPTYSlashCompletion(t *testing.T) {
 			t.Fatalf("completion changed saved work: task=%+v attempts=%d err=%v", got, len(attempts), err)
 		}
 	}
+	p.awaitVisible(t, 0, seed.Draft)
+	p.send(t, "\x15")
 	observe("ready", "", "", "", false)
 	p.send(t, "/")
 	// Check reachability through the actual bounded popup, not just that a
 	// registry contains the commands. Down scrolls the focus into its viewport.
-	names := []string{"/send", "/draft", "/models", "/accounts", "/login", "/logout", "/effort", "/permission", "/tasks", "/workflow", "/voice", "/result", "/older", "/new", "/explain", "/recover", "/demo", "/help", "/exit"}
+	names := make([]string, len(slashCommands))
+	for i, spec := range slashCommands {
+		names[i] = spec.Name
+	}
 	for index, name := range names {
 		if index != 0 {
 			p.send(t, "\x1b[B")
@@ -63,9 +68,9 @@ func TestPackagedConPTYSlashCompletion(t *testing.T) {
 		observe("all-"+strings.TrimPrefix(name, "/"), "/", name, "Commands", true)
 	}
 	p.send(t, "\x1b[B")
-	observe("down-wrap", "/", "/send", "Commands", true)
+	observe("down-wrap", "/", names[0], "Commands", true)
 	p.send(t, "\x1b[A")
-	observe("up-wrap", "/", "/exit", "Commands", true)
+	observe("up-wrap", "/", names[len(names)-1], "Commands", true)
 	unchanged()
 
 	p.send(t, "\x15/mo")
@@ -74,8 +79,10 @@ func TestPackagedConPTYSlashCompletion(t *testing.T) {
 	observe("tab-completed-only", "/models ", "", "", false)
 	unchanged()
 	mark := p.send(t, "\r")
-	p.awaitVisible(t, mark, "Choose models")
+	p.awaitVisible(t, mark, "Choose a model")
 	p.send(t, "\x1b")
+	p.awaitVisible(t, 0, seed.Draft)
+	p.send(t, "\x15")
 	observe("models-cancel", "", "", "", false)
 	unchanged()
 
@@ -87,16 +94,18 @@ func TestPackagedConPTYSlashCompletion(t *testing.T) {
 	mark = p.send(t, "\r")
 	p.awaitVisible(t, mark, "Choose effort")
 	p.send(t, "\x1b")
+	p.awaitVisible(t, 0, seed.Draft)
+	p.send(t, "\x15")
 	observe("effort-cancel", "", "", "", false)
 	unchanged()
 
 	p.send(t, "/")
-	observe("resize-before", "/", "/send", "Commands", true)
+	observe("resize-before", "/", names[0], "Commands", true)
 	p.send(t, "\x1b[B")
-	observe("resize-selected", "/", "/draft", "Commands", true)
+	observe("resize-selected", "/", names[1], "Commands", true)
 	p.resize(t, 60, 20)
 	width, height = 60, 20
-	observe("resize-retained", "/", "/draft", "Commands", true)
+	observe("resize-retained", "/", names[1], "Commands", true)
 	p.send(t, "mo")
 	observe("narrow-prefix", "/mo", "/models", "Commands matching /mo", true)
 	p.send(t, "\x1b")
@@ -106,7 +115,7 @@ func TestPackagedConPTYSlashCompletion(t *testing.T) {
 	p.send(t, "\x15/zz")
 	observe("no-match", "/zz", "", "No commands match /zz", true)
 	p.send(t, "\x7f\x7f")
-	observe("no-match-recovered", "/", "/send", "Commands", true)
+	observe("no-match-recovered", "/", names[0], "Commands", true)
 	unchanged()
 
 	const pasted = "/send literal completion fixture"
@@ -114,20 +123,21 @@ func TestPackagedConPTYSlashCompletion(t *testing.T) {
 	observe("literal-paste-no-popup", pasted, "", "", false)
 	unchanged()
 	mark = p.send(t, "\r")
-	p.awaitVisible(t, mark, "Saved draft")
-	observe("literal-saved", "", "", "", false)
+	p.awaitVisible(t, mark, "Ready for your next prompt")
+	observe("literal-sent-once", "", "", "", false)
 	got, attempts, err := a.Task(ctx, seed.ID)
-	if err != nil || got.Draft != seed.Draft+"\n"+pasted || got.Revision != seed.Revision+1 || got.Selection != seed.Selection || len(attempts) != 0 {
-		t.Fatalf("literal paste dispatched or changed selection: task=%+v attempts=%d err=%v", got, len(attempts), err)
+	if err != nil || got.Draft != "" || got.Selection != seed.Selection || len(attempts) != 1 || attempts[0].Input != pasted || attempts[0].State != "complete" {
+		t.Fatalf("literal paste was not sent exactly once as text: task=%+v attempts=%+v err=%v", got, attempts, err)
 	}
+	sentRevision := got.Revision
 	p.send(t, "/re")
 	observe("interrupt-prefix", "/re", "/result", "Commands matching /re", true)
-	p.send(t, "\x03")
+	p.send(t, "\x03\x03")
 	if code := p.wait(t); code != 130 {
 		t.Fatalf("interrupt exit=%d", code)
 	}
 	got, attempts, err = a.Task(ctx, seed.ID)
-	if err != nil || got.Draft != seed.Draft+"\n"+pasted+"\n/re" || got.Revision != seed.Revision+2 || got.Selection != seed.Selection || len(attempts) != 0 {
+	if err != nil || got.Draft != "/re" || got.Revision != sentRevision+1 || got.Selection != seed.Selection || len(attempts) != 1 {
 		t.Fatalf("interrupt lost prefix or dispatched work: task=%+v attempts=%d err=%v", got, len(attempts), err)
 	}
 }

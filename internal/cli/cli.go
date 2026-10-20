@@ -243,7 +243,7 @@ func runTask(ctx context.Context, a *app.App, opt app.Options, o *output) (core.
 		}
 	}
 	var hadText, hadWarning atomic.Bool
-	_ = o.notice("Preparing task | Ctrl+C interrupts", toneInfo)
+	_ = o.notice("Preparing your prompt | Ctrl+C twice to interrupt and exit", toneInfo)
 	_ = o.activity("working", false)
 	completed := false
 	defer func() {

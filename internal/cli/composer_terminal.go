@@ -16,10 +16,15 @@ func (s *session) readTerminalLine(ctx context.Context) line {
 func (s *session) readTerminalLineWithAction(ctx context.Context, action func(context.Context, string) (bool, error)) line {
 	editor := textEditor{}
 	literal := false
+	if s.task != nil {
+		editor.set(s.task.Draft)
+		// Restored prompts are content, even when their first word is /send.
+		literal = editor.text != ""
+	}
 	completion := terminalCompletion{}
 	for {
 		if err := s.syncTerminalChrome(); err != nil {
-			return line{text: editor.text, literal: true, err: err}
+			return line{text: editor.text, literal: true, replace: true, err: err}
 		}
 		if s.recoveryID != "" {
 			_ = s.out.notice("Draft conflict | choose /tasks or /new", toneWarning)
@@ -44,11 +49,11 @@ func (s *session) readTerminalLineWithAction(ctx context.Context, action func(co
 			frame.Lines[len(frame.Lines)-1] = terminalLine{Text: hint, Dim: true}
 		}
 		if err := s.terminal.paintComposer(frame); err != nil {
-			return line{text: editor.text, literal: true, err: err}
+			return line{text: editor.text, literal: true, replace: true, err: err}
 		}
 		event, err := s.terminal.next(ctx)
 		if err != nil {
-			return line{text: editor.text, literal: true, err: err}
+			return line{text: editor.text, literal: true, replace: true, err: err}
 		}
 		if frame.Completion.Visible {
 			switch event.kind {
@@ -83,18 +88,18 @@ func (s *session) readTerminalLineWithAction(ctx context.Context, action func(co
 		}
 		switch event.kind {
 		case keyEnter:
-			_ = s.terminal.paintComposer(terminalFrame{Lines: []terminalLine{{Text: "> "}, {Text: "Ctrl+C interrupts", Dim: true}}, CursorRow: -1})
+			_ = s.terminal.paintComposer(terminalFrame{Lines: []terminalLine{{Text: "> "}, {Text: "Working · Ctrl+C twice to interrupt and exit", Dim: true}}, CursorRow: -1})
 			_ = s.terminal.paint(terminalFrame{CursorRow: -1})
-			return line{text: editor.text, complete: true, literal: literal}
+			return line{text: editor.text, complete: true, literal: literal, replace: true}
 		case keyEOF:
-			return line{text: editor.text, literal: true, err: io.EOF}
+			return line{text: editor.text, literal: true, replace: true, err: io.EOF}
 		case keyEscape:
 			// Esc leaves text intact. Discarding a composition is explicit Ctrl+U.
 		case keyTab:
-			actions := []choice{{"/models", "Models - search model choices"}, {"/accounts", "Accounts - choose an authorized account"}, {"/login", "Connect account - native sign-in"}, {"/effort", "Effort - choose reasoning intent"}, {"/permission", "Permission - choose the runtime envelope"}, {"/tasks", "Tasks - open saved work"}, {"/workflow", "Workflow - inspect a plan file"}, {"/voice", "Voice - dictate into this draft"}, {"/result", "Results - inspect saved attempts"}, {"/explain", "Explain - preview the next route"}, {"/help", "Help - show every action"}}
+			actions := []choice{{"/models", "Models - choose an AI model or see setup steps"}, {"/accounts", "Accounts - choose a connected AI account"}, {"/login", "Connect account - use an existing login or sign in"}, {"/sessions", "Sessions - watch progress and read results"}, {"/tasks", "Switch session - open earlier work for a follow-up"}, {"/new", "New session - start fresh"}, {"/effort", "Effort - choose reasoning intent"}, {"/permission", "Permission - choose what the agent may access"}, {"/workflow", "Workflow - inspect a plan and its steps"}, {"/voice", "Voice - dictate into this prompt"}, {"/result", "Results - read saved responses"}, {"/explain", "Explain - preview the next route"}, {"/help", "Help - show every action"}}
 			value, err := s.chooseTerminal(ctx, "Actions — your composition is kept", actions, "")
 			if err != nil {
-				return line{text: editor.text, literal: true, err: err}
+				return line{text: editor.text, literal: true, replace: true, err: err}
 			}
 			if value != "" {
 				if value == "/voice" {
@@ -107,25 +112,36 @@ func (s *session) readTerminalLineWithAction(ctx context.Context, action func(co
 					}
 					if err != nil {
 						if ctx.Err() != nil || problemFor(err).Exit == 9 {
-							return line{text: editor.text, literal: true, err: err}
+							return line{text: editor.text, literal: true, replace: true, err: err}
 						}
 						_ = s.out.problem(err)
 					}
 					continue
 				}
-				if value == "/tasks" && editor.text != "" {
-					_ = s.out.text("Press Enter to save this composition before switching tasks. Your text is kept here.\n")
-					continue
+				if value == "/tasks" || value == "/new" {
+					if s.recoveryID == "" && (editor.text != "" || s.task != nil && s.task.Draft != "") {
+						if err := s.storeDraft(ctx, editor.text, false); err != nil {
+							_ = s.out.problem(err)
+							continue
+						}
+					}
 				}
 				_, err := action(ctx, value)
 				if err != nil {
 					if ctx.Err() != nil || problemFor(err).Exit == 9 {
-						return line{text: editor.text, literal: true, err: err}
+						return line{text: editor.text, literal: true, replace: true, err: err}
 					}
 					_ = s.out.problem(err)
 				}
+				if err == nil && (value == "/tasks" || value == "/new") {
+					editor.set("")
+					if s.task != nil {
+						editor.set(s.task.Draft)
+					}
+					literal = editor.text != ""
+				}
 				if ctx.Err() != nil {
-					return line{text: editor.text, literal: true, err: ctx.Err()}
+					return line{text: editor.text, literal: true, replace: true, err: ctx.Err()}
 				}
 			}
 		default:
@@ -156,10 +172,9 @@ func (s *session) composerFrame(editor textEditor) terminalFrame {
 
 func composerHint(width int) string {
 	for _, text := range []string{
-		"Enter save · /send submit · Tab actions · Alt+Enter newline · Ctrl+C exit",
-		"Enter save · /send submit · Tab actions · Ctrl+C exit",
-		"Enter save · Tab actions · /send submit",
-		"Enter save · Tab actions",
+		"Enter send · Alt+Enter newline · / commands · Tab actions · Ctrl+C twice exit",
+		"Enter send · Alt+Enter newline · Tab actions",
+		"Enter send · Tab actions",
 		"Tab actions",
 	} {
 		if cellWidth(text) < width {

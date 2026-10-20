@@ -55,7 +55,7 @@ func TestComposerCleanupFailureStopsTabActionsAndPreservesComposition(t *testing
 	terminal.width.Store(80)
 	terminal.height.Store(24)
 	const composition = "/send is still unsent literal composition"
-	for _, event := range []keyEvent{{kind: keyText, text: composition}, {kind: keyTab}, {kind: keyText, text: "Connect account"}, {kind: keyEnter}, {kind: keyTab}, {kind: keyText, text: "Connect account"}, {kind: keyEnter}} {
+	for _, event := range []keyEvent{{kind: keyClear}, {kind: keyText, text: composition}, {kind: keyTab}, {kind: keyText, text: "Connect account"}, {kind: keyEnter}, {kind: keyTab}, {kind: keyText, text: "Connect account"}, {kind: keyEnter}} {
 		terminal.enqueue(event)
 	}
 	var output bytes.Buffer
@@ -80,16 +80,16 @@ func TestComposerCleanupFailureStopsTabActionsAndPreservesComposition(t *testing
 		}
 		return false, cleanup
 	})
-	if result.err != cleanup || result.text != composition || !result.literal || result.complete || calls != 1 || len(terminal.events) != 3 || ctx.Err() != nil {
+	if result.err != cleanup || result.text != composition || !result.literal || !result.replace || result.complete || calls != 1 || len(terminal.events) != 3 || ctx.Err() != nil {
 		t.Fatalf("cleanup failure allowed continuation or lost composition: %+v calls=%d queued=%d", result, calls, len(terminal.events))
 	}
 	// Consume the returned partial text through the session's actual durable
 	// draft path. The outer interactive loop does this before returning exit9.
-	if err = s.appendDraft(ctx, result.text); err != nil {
+	if err = s.saveDraft(ctx, result.text); err != nil {
 		t.Fatal(err)
 	}
 	stored, attempts, err := a.Task(ctx, seed.ID)
-	if err != nil || stored.Draft != "Existing draft\n"+composition || stored.Selection != seed.Selection || len(attempts) != 0 {
+	if err != nil || stored.Draft != composition || stored.Selection != seed.Selection || len(attempts) != 0 {
 		t.Fatalf("fatal menu return did not preserve literal unsent input: %+v %+v %v", stored, attempts, err)
 	}
 	if problemFor(result.err).Exit != 9 {
@@ -134,7 +134,17 @@ func TestComposerTypedAndTabFatalActionParity(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(directory, "damaged.json"), []byte("{}"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	exit, _ := runInteractive(t, home, cwd, "Saved draft\n/accounts\nMust not be accepted\n", true)
+	seedApp, err := app.Open(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = seedApp.Draft(context.Background(), "", "Saved draft", cwd, core.Defaults()); err != nil {
+		t.Fatal(err)
+	}
+	if err = seedApp.Close(); err != nil {
+		t.Fatal(err)
+	}
+	exit, _ := runInteractive(t, home, cwd, "/accounts\nMust not be accepted\n", true)
 	if exit != 9 {
 		t.Fatalf("typed fatal action exit=%d", exit)
 	}
@@ -152,7 +162,7 @@ func TestComposerTypedAndTabFatalActionParity(t *testing.T) {
 	terminal := &terminalUI{program: &composerFrameCollector{}, events: make(chan keyEvent, 8), done: make(chan struct{}), interrupt: cancel}
 	terminal.width.Store(80)
 	terminal.height.Store(24)
-	for _, event := range []keyEvent{{kind: keyText, text: "Unsent fragment"}, {kind: keyTab}, {kind: keyText, text: "Accounts"}, {kind: keyEnter}, {kind: keyText, text: "Must not be accepted"}} {
+	for _, event := range []keyEvent{{kind: keyClear}, {kind: keyText, text: "Unsent fragment"}, {kind: keyTab}, {kind: keyText, text: "Accounts"}, {kind: keyEnter}, {kind: keyText, text: "Must not be accepted"}} {
 		terminal.enqueue(event)
 	}
 	var output bytes.Buffer
@@ -173,7 +183,7 @@ func TestComposerHintsFitWithoutPartialControls(t *testing.T) {
 		if cellWidth(hint) >= width || (width >= 12 && !strings.Contains(hint, "Tab actions")) {
 			t.Fatalf("width %d clips discovery: %q", width, hint)
 		}
-		if width >= 60 && !strings.Contains(hint, "Ctrl+C exit") {
+		if width >= 80 && !strings.Contains(hint, "Ctrl+C twice") {
 			t.Fatalf("width %d loses complete exit hint: %q", width, hint)
 		}
 	}
