@@ -54,27 +54,7 @@ func (a *App) nativeModels() []core.Model {
 	if err != nil {
 		return nil
 	}
-	seen := map[string]bool{}
-	var result []core.Model
-	for _, item := range items {
-		if item.Provider != "codex" && item.Provider != "claude" {
-			continue
-		}
-		for _, model := range item.Models {
-			id := universalModelID(item.Provider, model.ID)
-			if seen[id] {
-				continue
-			}
-			seen[id] = true
-			var efforts []string
-			for _, effort := range publicEfforts(model.Efforts) {
-				efforts = append(efforts, effort.Level)
-			}
-			result = append(result, core.Model{ID: id, Label: model.Name, Runtime: item.Provider, Efforts: efforts,
-				Available: item.AuthState == "authenticated", Reason: "Cached native catalog; identity, model and permission are checked before dispatch. Quota/entitlement is not guaranteed by listing."})
-		}
-	}
-	return result
+	return nativeCatalogModels(items)
 }
 
 func (a *App) resolveNativeRoute(ctx context.Context, opt Options) (core.Route, string, *adapters.NativeBinding, error) {

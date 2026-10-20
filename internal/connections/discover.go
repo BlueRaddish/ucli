@@ -90,6 +90,12 @@ func codexTriple() string {
 	return "x86_64-pc-windows-msvc"
 }
 
+// ExecutablePresent checks known local paths only. Presence is not a verified
+// version, sign-in, entitlement or an executable admission decision.
+func ExecutablePresent(provider string) bool {
+	return providerKnown(provider) && findExecutable(provider) != ""
+}
+
 // Discover explicitly inspects known install locations and hashes native files.
 // It never executes a shim/binary, reads credentials, or creates a native home.
 func (s *Service) Discover(ctx context.Context) ([]Discovered, error) {

@@ -58,7 +58,7 @@ func verifyMuseExecutable() (string, error) {
 	return path, nil
 }
 
-func (a *App) Models() []core.Model {
+func (a *App) localModels() []core.Model {
 	_, err := museExecutable()
 	reason := "Pinned runtime found; hash verified at launch. Explicit echo only, no AI, account or reasoning."
 	if err != nil {
@@ -69,7 +69,7 @@ func (a *App) Models() []core.Model {
 		{ID: "demo/deep", Label: "Detailed local demonstration (simulated)", Runtime: "demo", Efforts: []string{"medium", "high", "max"}, Available: true, Reason: "No AI inference or provider quota"},
 		{ID: "muse/echo", Label: "Muse native echo (no AI)", Runtime: "muse", Efforts: []string{}, Available: err == nil, Reason: reason},
 	}
-	return append(models, a.nativeModels()...)
+	return models
 }
 func (a *App) Accounts() []core.Account {
 	accounts := []core.Account{

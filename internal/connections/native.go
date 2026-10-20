@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -16,6 +17,7 @@ import (
 
 	"ucli.local/ucli/internal/adapters/claude"
 	"ucli.local/ucli/internal/adapters/codex"
+	"ucli.local/ucli/internal/core"
 	"ucli.local/ucli/internal/process"
 )
 
@@ -148,11 +150,69 @@ func (s *Service) inspectNative(ctx context.Context, c Connection) (Connection, 
 		return inspectGitHub(ctx, c)
 	case "agy":
 		c.AuthState, c.AuthMode, c.Identity = "unknown", "native-keyring", ""
+		c.ManagedAI = false
+		result, err := run(ctx, c, []string{"models"}, 20*time.Second, nil)
+		if err != nil {
+			return c, err
+		}
+		if result.exit != 0 {
+			return c, problem("connection_catalog", "Antigravity could not list its models. No sign-in or AI task was started; its private diagnostics were discarded.")
+		}
+		c.Models, err = parseAGYModels(result.stdout)
+		if err != nil {
+			return c, err
+		}
 		return c, nil
 	case "codex", "claude":
-		return inspectAdapter(ctx, c)
+		updated, err := inspectAdapter(ctx, c)
+		var typed *core.Error
+		if c.Provider == "claude" && errors.As(err, &typed) && typed.Code == "claude_version" {
+			copy := *typed
+			copy.Message = fmt.Sprintf("Claude Code %s is installed, but UCLI's adapter is reviewed for %s. Your native sign-in may still work; this is a version compatibility check, not a request to sign in again. Use Claude Code directly until this version is reviewed.", c.Version, claude.Version)
+			err = &copy
+		}
+		return updated, err
 	}
 	return c, problem("connection_input", "Unsupported native provider.")
+}
+
+// AGY currently emits tab-separated model ID/name pairs. Fail closed on drift:
+// these are display-only catalog entries, never auth or model admission proof.
+func parseAGYModels(raw []byte) ([]Model, error) {
+	fail := func() ([]Model, error) {
+		return nil, problem("connection_catalog", "Antigravity's model list did not match the supported metadata format; no models were cached.")
+	}
+	if len(raw) == 0 || len(raw) > 64<<10 || !utf8.Valid(raw) {
+		return fail()
+	}
+	lines := strings.Split(strings.TrimSuffix(strings.TrimSuffix(string(raw), "\n"), "\r"), "\n")
+	if len(lines) > 256 {
+		return fail()
+	}
+	models := make([]Model, 0, len(lines))
+	seen := map[string]bool{}
+	for _, line := range lines {
+		parts := strings.Split(strings.TrimSuffix(line, "\r"), "\t")
+		if len(parts) != 2 || len(parts[0]) == 0 || len(parts[0]) > 128 || len(parts[1]) == 0 || len(parts[1]) > 256 || seen[parts[0]] {
+			return fail()
+		}
+		for _, c := range parts[0] {
+			if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '-' || c == '_' || c == '.') {
+				return fail()
+			}
+		}
+		for _, c := range parts[1] {
+			if c < 32 || c > 126 {
+				return fail()
+			}
+		}
+		if strings.TrimSpace(parts[1]) != parts[1] {
+			return fail()
+		}
+		seen[parts[0]] = true
+		models = append(models, Model{ID: parts[0], Name: parts[1]})
+	}
+	return models, nil
 }
 
 func inspectAdapter(ctx context.Context, c Connection) (Connection, error) {
