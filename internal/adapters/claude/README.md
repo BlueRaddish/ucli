@@ -9,14 +9,28 @@ The native default configuration home is left implicit: setting
 Separate credential isolation is unverified and refused. An identity change
 requires explicit relinking; it never silently switches accounts.
 
-`Inspection.Models` contains raw aliases `default`, `sonnet`, `opus`; the app adds
-`claude/`. The default alias omits `--model`. This local alias catalog is not a
-claim of entitlement, exact model version, remaining quota, or reset timers.
-An explicit Sonnet/Opus alias must match the native initialization's model family;
-a subsequent reported model change is rejected. `Outcome.NativeModel` carries
-the observed identifier separately from the accepted alias. Signed-out status
-(`loggedIn:false`, `authMethod:none`, including native exit 1) returns an empty
-identity/catalog and explicit `AuthMode:none`; unknown/API-key modes are refused.
+Catalog inspection runs native zero-user-turn SDK initialization to read live
+model metadata rather than relying on hardcoded model aliases or family-prefix
+matching. The cache stores raw IDs, display names, resolved wire IDs, and declared
+effort capabilities, while the application prefixes entries with `claude/`. Only
+known supported effort levels map to public intent. Unknown, disabled, or
+fixed-effort choices remain visible in the catalog but are marked unavailable
+whenever the request contract cannot be honored.
+
+Unresolved aliases cannot be executed. Native initialization must confirm the
+fresh, exact resolved wire ID; the requested alias and observed native model are
+recorded separately. Launch arguments preserve the requested advertised ID,
+including context-window modifiers. Model discovery does not prove account
+entitlement, remaining quota, or reset time, nor does it establish that inference
+will succeed.
+
+The separate `DiscoverModels` path can read metadata from an explicitly
+fingerprinted changed binary without admitting execution or proving
+authentication. `Inspect` and execution retain their reviewed build,
+configuration, and account checks. An explicit signed-out status returns an empty
+identity and catalog with `AuthMode:none`, while unknown or API-key authentication
+modes are refused. Execution requires a stable account identity and never performs
+automatic rebinding.
 
 The selected executable is trusted native code, not a security sandbox. Read-only
 uses an empty temporary working directory and **no tools**. Explicit `sandbox`

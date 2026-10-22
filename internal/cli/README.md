@@ -59,6 +59,27 @@ go run ./cmd/ucli --home .build/cli-tryout
 
 Running `ucli` with no arguments on a real terminal opens the interactive shell, while redirected invocation prints help and exits. In rich mode, the layout stacks a static cat, version, and context header with a matching separator, a bounded scrollable body navigated via `PageUp`/`PageDown`, a notice row, an upper rule, the input editor, a lower rule, a model and working-path footer, and keyboard hints; tiny terminals reduce this layout. Interactive selectors, inspection-only workflow views (with no executor), voice controls, and login prompts share the shell, and standalone panels retain real controls rather than a pretend editable draft.
 
+Submitted prompts render with a labeled tinted band and a structural gutter, while
+assistant deltas extend an explicitly typed reply rather than inferring roles from
+prose. When loading saved results, the transcript derives roles directly from the
+recorded attempt inputs and outputs. Markdown, code fences, indentation, and
+newlines are rendered literally without introducing a new Markdown engine or
+synthesized tool-event groups. Transient status updates appear in the notice row,
+whereas warnings and errors remain retained in the transcript.
+
+When the latest retained prompt heading scrolls above the viewport body, `Latest
+prompt` (`Ctrl+Up`) reveals it, pauses auto-following, and leaves the composer
+intact. `PageUp` and `PageDown` preserve source-text anchors across incoming
+output and terminal resizes, while `Latest output` (`Ctrl+End`) resumes following.
+Open menus capture keyboard input, and mouse capture stays off so native terminal
+copy works normally.
+
+The in-memory display is bounded to 64 KiB of source text, 400 records, and 600
+wrapped rows. When older content is evicted, the transcript discloses the eviction
+and removes evicted headings as jump targets, though `/result` still reads the
+full saved output separately. Non-demo chrome labels the session as fresh native
+context to make clear that displayed history does not imply provider memory.
+
 When slash completion is not open, pressing `Tab` opens the action discovery menu while keeping the committed selection separate from transient menu focus: type to filter, use wrapping `Up` and `Down` keys to move focus, press `Enter` to confirm, or press `Escape` to cancel while preserving in-progress composition.
 
 In the rich editor, `Enter` sends one nonempty composition without repeated auto-sends, while `Alt+Enter`, `Shift+Enter`, or `Ctrl+J` inserts a newline and `/send` remains supported. UCLI persists the full pending composition before routing or acceptance, leaving recoverable text if a missing account, unsupported version, or conflict stops submission; compare-and-swap conflicts save a separate recovery draft. Restored drafts load into the editor for editing, and later rich saves replace the draft instead of appending duplicates. Changing tasks or settings preserves pending text, and bracketed paste or voice input stays literal until `Enter`. Input is bounded to 1 MiB with Unicode grapheme editing and `EOF` text preservation without submitting, without per-keystroke disk autosave or crash recovery for undelivered keystrokes.

@@ -56,18 +56,23 @@ Only allowlisted HTTPS provider URLs and bounded device-code patterns are
 emitted; native diagnostics and account emails are never forwarded. Callback code
 must return promptly; the process context still bounds child lifetime if it blocks.
 
-GitHub uses `gh auth status` and the numeric ID from `gh api user`; it is a native
-local GitHub connection, not a hosted UCLI identity or synchronization service.
-Native gh owns credential storage and documents a plaintext fallback if its OS
-credential store is unavailable. This package does not request insecure storage
-or claim stronger guarantees than gh provides. Agy has no reviewed dedicated
-noninteractive auth-status/login interface here: discovery/version metadata can
-be recorded, but authentication remains unknown and login requires the native UI.
-Codex identity inspection uses its adapter's reviewed app-server initialization,
-account and catalog path; Claude uses its reviewed status/account-metadata path.
-Both return explicit signed-out results separately from unsupported API billing.
-Their pinned build/platform restrictions also apply to connection inspection.
-Native tools own any credential refresh performed by their status commands.
+GitHub discovery checks `gh auth status` and reads the numeric user ID from `gh
+api user`, treating the result as a local native connection rather than a hosted
+UCLI identity or sync service. `gh` owns credential storage and may fall back to
+plaintext when an OS store is unavailable; UCLI never requests insecure storage.
+For `agy`, no reviewed noninteractive auth or login path exists, so authentication
+remains unknown and requires the native UI. Codex account and catalog inspection
+remains pinned to reviewed builds, whereas Claude relies on native status and
+account metadata paired with a zero-turn catalog probe.
+
+An explicit status check may refresh Claude or `agy` discovery from a changed
+executable while preserving the original execution fingerprint and marking
+execution compatibility as unknown. `CatalogSHA256` records the discovery source
+separately so that discovery refreshes cannot promote execution compatibility or
+imply successful inference. Native tools remain responsible for credential
+refresh. Signed-out state is tracked distinctly from API billing and failed
+metadata refreshes, and a failed refresh retains the last-good catalog
+observation.
 
 `IdentityFingerprint(provider,nativeID)` is SHA-256 of the exact provider name,
 a NUL separator, and the stable native ID. Adapters use the same formula. This is
@@ -78,6 +83,19 @@ pin. Removing the local reference and reconnecting creates a fresh connection ID
 Cached authentication/models have an observation time and are not fresh admission
 evidence; execution must independently revalidate identity/configuration/permissions.
 `Isolation` remains `unverified`, and `ManagedAI` remains false.
+
+Canonical checksummed immutable metadata writes format 2 to record execution
+compatibility state and the discovery-source SHA, along with optional resolved
+IDs, effort state, and unavailable state. The reader still accepts canonical
+format 1 records without rewriting them during browsing, and legacy zero-valued
+fields preserve their canonical bytes. Older readers refuse format 2 records
+rather than attempting to execute extended records they do not understand.
+
+This format update requires no SQLite schema migration. The original execution
+fingerprint stays intact while the discovery source is tracked independently.
+Cached metadata never serves as fresh admission proof or proof of inference;
+execution independently validates identity, configuration, and permissions, and
+not all fresh checks run prior to durable acceptance.
 
 Metadata is canonical JSON with a checksum in immutable revision files. New files
 are owner-only where supported, flushed, and published by nonclobber hard link.
