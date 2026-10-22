@@ -38,6 +38,17 @@ ASCII mode. State checks prove that viewing never dispatches a task and Ctrl+C
 preserves the complete unsent multiline composition. These are executable
 requirements; consult a fresh receipt for whether a particular build passed.
 
+`TestPackagedConPTYTranscriptNavigation` submits one literal multiline demo
+prompt, checks its saved attempt, jumps to the latest prompt with `Ctrl+Up`,
+resizes while that anchor is visible, and returns to latest output with `Ctrl+End`.
+An unsent editor survives these controls, the action menu, and EOF without another
+attempt. It also rejects emitted mouse-capture modes. `TestPackagedConPTYTranscriptBands`
+uses owned dark/light OSC 11 replies to capture actual colored prompt bands and
+assistant text from the packaged process. The ordinary `TestTranscript*` tests
+cover typed streaming deltas, literal code/Unicode, paused growth, source and wrapped
+cache eviction, and monochrome/tiny layouts. These are verification routes; only
+a fresh execution receipt establishes which packaged checks passed.
+
 The harness starts its output drain before the child, creates the child suspended,
 assigns a kill-on-close job, and then resumes it. Reads and writes have separate
 workers and bounded waits. Output keeps draining during console teardown, as
