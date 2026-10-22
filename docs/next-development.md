@@ -68,26 +68,23 @@ schemas and tagged emitters, and drive actual-child fixtures. `turn/plan/updated
 and `turn/moderationMetadata` are known unsupported methods, not established causes
 of this failure. Preserve permission/identity checks and unknown-outcome guards.
 
-Use this bounded offline packet for that gap:
+The bounded offline packet is implemented in
+[reviewed notifications](../internal/adapters/codex/notifications.md). Only eight
+reviewed method literals enter diagnostics; unknown names and all payloads stay
+withheld. Plan/moderation metadata requires matching thread/turn identities and
+bounded schemas. Terminal-interaction/patch-update details require explicit
+sandbox permission and a matching active command/file item. The driver discards
+their contents; they neither execute reported input nor settle a turn. Proposed
+plan deltas, MCP and automatic approval-review items remain outside the admitted
+lifecycle. Existing warning/configuration/reroute boundaries are unchanged.
 
-1. Map only the eight reviewed unsupported method literals into safe diagnostics:
-   `turn/plan/updated`, `turn/moderationMetadata`, `item/plan/delta`,
-   `item/commandExecution/terminalInteraction`, `item/fileChange/patchUpdated`,
-   `item/mcpToolCall/progress`, and `item/autoApprovalReview/started`/`completed`.
-   Keep unknown method strings and all native payloads withheld. Verify the reason
-   through the driver, App persistence and same-command replay.
-2. Admit reviewed nonterminal metadata with matching thread/turn identities and
-   bounded schemas. A checklist has `{step,status}` entries with pending,
-   inProgress or completed status and an optional nullable explanation. Moderation
-   metadata has arbitrary JSON in this version: require its presence, retain none
-   of it, and never treat it as output, authorization or terminal proof.
-3. Validate terminal-interaction/patch-update details against an existing active
-   command/file item only under sandbox. Keep read-only, disabled-MCP, Guardian
-   review, configuration warnings and reroute boundaries strict. Proposed-plan
-   deltas are a separate native mode, not authoritative completed plan content.
-4. Drive actual children through metadata-to-completion, failed terminal, metadata
-   EOF, wrong identities, malformed fields, bounds and warning-plus-metadata. Do
-   this before another native inference; retain all earlier unknown receipts.
+Actual-child fixtures cover completion, failed terminal, EOF, malformed/foreign
+metadata, bounds, active-tool constraints and warning ordering. Separate public
+Driver-to-App tests preserve fixed diagnostics, terminal classifications and
+unknown-work guards through restart and same-command replay. This layered proof
+does not identify the old unrecorded notification or establish live inference.
+Preserve earlier unknown receipts. Any later live check remains a bounded opt-in
+after the current source and packaged checks pass.
 
 Exact-tag references: [moderation emission](https://github.com/openai/codex/blob/rust-v0.162.1/codex-rs/app-server/src/bespoke_event_handling.rs#L422),
 [checklist emission](https://github.com/openai/codex/blob/rust-v0.162.1/codex-rs/app-server/src/bespoke_event_handling.rs#L1291),
@@ -115,6 +112,34 @@ next optimization is a cached disabled-server-name set keyed to the exact bindin
 and cwd, with a fresh full effective-config check before every turn and a safe
 zero-turn refresh on mismatch. That is a proposal, not an implemented guarantee;
 do not remove admission checks to improve timing.
+
+## Approved conversation and dynamic catalogs
+
+Use [the conversation contract](conversation-ui.md) for transcript changes and
+[the verification route](verification.md) for consuming checks. Submitted prompts,
+assistant replies and UCLI messages have distinct display roles, independent of
+their text. Keep the frame, draft, cursor and independent pins stable. Native task
+history still does not provide provider memory: current submissions use fresh
+contexts. Typed display history must not imply a persistent native conversation.
+
+Claude model discovery uses initialization metadata without a user prompt, with
+exact advertised resolution/capability checks before dispatch. Keep fixed-effort,
+unknown-effort and native-disabled models visible with precise limitations. Do not
+reintroduce fallback model-name lists or alias-prefix acceptance. Discovery,
+authentication, execution compatibility, entitlement and capacity are separate.
+On executable changes, retain account identity, explicit pins and last-good data;
+metadata from a new file does not admit its execution. Extended connection records
+use format 2 on explicit writes, with format-1 reads retained. Older clients refuse
+these extended records; this does not migrate the task SQLite schema.
+
+The next session-ownership slice must separate workers from the foreground UI.
+Keep one active turn per provider/account/workspace/permission-bound native context,
+persist sequenced output before delivery, and support UI reattachment without
+replaying work. Launch lazily and close idle processes only where verified native
+resume preserves context. UI detachment or a slow reader must not cancel a worker.
+Explicit cancellation still requires native terminal proof; unknown outcomes
+remain fenced. Do not add a second task store, infer resume from saved prose or
+start every installed CLI at application startup.
 
 ## Durable capacity and workflow execution: P08/P17/P21/P22
 

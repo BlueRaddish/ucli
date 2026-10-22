@@ -41,6 +41,66 @@ provider inference. Geometry captures are ANSI-emulated evidence, not physical
 screenshots or human usability measurements. macOS and Linux cross-builds do
 not establish host execution or terminal behavior on those platforms.
 
+## Conversation transcript and native discovery - October 21
+
+The [conversation contract](conversation-ui.md) keeps the existing frame and
+editor while giving submitted prompts a structural band and assistant replies
+their own typed records. Deltas append to one reply; saved history takes roles
+from attempt input/output. Provider prose cannot create UCLI role headings or
+controls. Code fences and indentation remain literal; this slice adds no Markdown
+renderer or inferred tool summaries. Informational execution status uses the
+notice instead of repeating inside the reply. Warnings/errors remain retained.
+
+`Ctrl+Up` reveals the latest retained prompt. `Ctrl+End` returns to the output
+tail; `PageUp` pauses following. Incoming fragments and resize retain a source
+anchor rather than a tail-relative row count. Pruned source or wrapped rows must
+disclose omission and remove unavailable prompt targets. Verify the independent
+64 KiB source, 400-record and 600-wrapped-row bounds, including newline-heavy
+output and a single oversized record. Native terminal mouse reporting remains
+off. Visible transcript history does not imply native provider memory; the
+current native-context limitation must remain visible.
+
+Focused checks use the existing Go and hidden-console routes:
+
+```console
+go test -p=1 -count=1 ./internal/cli -run 'TestTranscript|TestTerminalShell|TestFramed|TestTerminalCompletion|TestCompletion'
+go test -p=1 -count=1 ./internal/adapters/claude ./internal/connections ./internal/app
+```
+
+After freezing sources and building, use the same `UCLI_CONPTY_BINARY`,
+`UCLI_CONPTY_EVIDENCE` and `UCLI_TERMINAL_QA_DEPS` setup described above:
+
+```console
+go test -p=1 -count=1 ./internal/cli -run '^TestPackagedConPTYTranscript(Navigation|Bands)$'
+```
+
+The packaged paths exercise prompt/tail targets, fixed editor/footer positions,
+unsent composition, resize, return from actions, recorded light/dark prompt bands
+and monochrome. Retain the raw bytes and observation/frame offsets; render them
+with `tools/render_terminal.py` for inspection. These are owned virtual-console
+and ANSI-emulation checks, not desktop screenshots or evidence from other hosts.
+Run the complete `TestPackagedConPTY` family before local delivery.
+
+Claude catalogs now require initialization metadata without a user message.
+Exercise new/removed names, exact alias resolution, disabled models, supported,
+fixed and unknown effort, malformed/unsolicited control frames, EOF and timeout.
+Catalog refresh and authentication are separate from execution admission. On a
+changed native executable, preserve the account ID, binding pin and last-good
+catalog; execution compatibility stays unknown. AGY refresh remains catalog-only.
+Ordinary model browsing must launch no native processes. Distinguish fixture
+checks, an actual initialization-only native probe and actual model inference.
+
+Connection metadata extensions use format 2 on explicit writes. Verify old
+format-1 reads, checksum/canonical-byte validation, malformed extension rejection,
+and refusal by a legacy reader instead of silent field loss. Browsing must not
+rewrite old history or migrate the task SQLite database. Do not test this against
+a personal home or claim a rollback to an older binary can read new metadata.
+
+Codex's [reviewed notifications](../internal/adapters/codex/notifications.md)
+have actual-child fixtures plus separate App persistence/restart/replay checks.
+They do not establish a successful live native response. No notification,
+checklist step, timeout or process exit may replace matching turn terminal proof.
+
 ## Inline slash completion - October 20
 
 The rich composer uses the same supported-command registry as `/help`. Typing `/`
@@ -81,7 +141,7 @@ mode, first Ctrl+C shows a two-second confirmation; the second confirms. Typing
 or Escape disarms it, stale timers cannot clear newer notices, and noninteractive
 SIGINT remains immediate. Unknown native outcomes retain their existing fence.
 
-The model picker must show unavailable Claude aliases and cached AGY models as
+The model picker must show unavailable cached native models and AGY models as
 inspection/setup actions, never executable selections. Verify unique row focus
 identities, keyboard navigation, independent pins and cancellation. Local path
 presence, cached sign-in, version compatibility and execution support are distinct.
