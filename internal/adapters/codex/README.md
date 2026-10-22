@@ -1,7 +1,10 @@
 # Codex native adapter (experimental)
 
-The public driver admits only the reviewed Windows amd64 Codex CLI 0.162.1 binary
-with SHA-256 `dd13bdb162a184fa04039488b234a8258ef9b76f84e926c505d5742b19249a6a`.
+The public driver admits reviewed Windows amd64 Codex CLI profiles: 0.162.1
+(SHA-256 `dd13bdb162a184fa04039488b234a8258ef9b76f84e926c505d5742b19249a6a`)
+and 0.163.0 (`2692c8c7bb2cf8b0aefe638741fc90236f4b824c59578ce84994f9de58200993`).
+The current profile disables and verifies native async compaction. Unknown
+versions or changed bytes remain unavailable.
 An explicit native connection supplies the executable, native home, home mode,
 ChatGPT authentication mode and opaque account fingerprint. No credential bytes
 are copied, parsed by UCLI or persisted in UCLI receipts. Codex owns normal refresh.

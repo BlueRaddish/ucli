@@ -10,7 +10,8 @@ which paths have executed evidence.
 ## Display records
 
 Keep user, assistant and system records structurally distinct. A user prompt has
-a shallow band, a left bar and a short caption; assistant text uses the normal
+a shallow band, one right-pointing marker and a short caption; wrapped prompt
+lines are indented. Assistant text uses the normal
 background with a concise source heading. Color supplements those distinctions.
 Do not infer roles from the text, and do not interpret an assistant's headings as
 UCLI controls or status.

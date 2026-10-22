@@ -1,7 +1,8 @@
 # Native connection references
 
 This package records selected native executable/home references, not credentials.
-It is called only from an explicit connection or login action. `New`, `List` and
+It serves explicit account actions and bounded stale-catalog refresh on submission.
+`New`, `List` and
 `Get` read local metadata only; `Discover` inspects known installation locations
 and hashes native executables without running them. No startup account polling,
 inference, token copying, native logout, or credential deletion is implemented.
@@ -74,6 +75,8 @@ refresh. Signed-out state is tracked distinctly from API billing and failed
 metadata refreshes, and a failed refresh retains the last-good catalog
 observation.
 
+Explicit account reuse in `/login` can recheck a reviewed native CLI update without removing the connection. When the current executable and authentication are reviewed, stable, and match the bound account, the connection ID, label, and native profile remain fixed. A signed-out, genuinely unbound record can acquire its first verified account through this explicit action, while unknown builds, identity changes, or failed checks leave the existing binding untouched. Routine status and catalog refreshes never silently replace the execution fingerprint.
+
 `IdentityFingerprint(provider,nativeID)` is SHA-256 of the exact provider name,
 a NUL separator, and the stable native ID. Adapters use the same formula. This is
 a pseudonymous equality check, not an authorization token or anonymization claim.
@@ -91,8 +94,10 @@ format 1 records without rewriting them during browsing, and legacy zero-valued
 fields preserve their canonical bytes. Older readers refuse format 2 records
 rather than attempting to execute extended records they do not understand.
 
-This format update requires no SQLite schema migration. The original execution
-fingerprint stays intact while the discovery source is tracked independently.
+This format update requires no SQLite schema migration. Routine status and
+catalog refresh keep the original execution fingerprint while tracking the
+discovery source independently. Explicit account reuse follows the reviewed
+update checks described above.
 Cached metadata never serves as fresh admission proof or proof of inference;
 execution independently validates identity, configuration, and permissions, and
 not all fresh checks run prior to durable acceptance.

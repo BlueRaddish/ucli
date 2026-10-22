@@ -59,8 +59,9 @@ go run ./cmd/ucli --home .build/cli-tryout
 
 Running `ucli` with no arguments on a real terminal opens the interactive shell, while redirected invocation prints help and exits. In rich mode, the layout stacks a static cat, version, and context header with a matching separator, a bounded scrollable body navigated via `PageUp`/`PageDown`, a notice row, an upper rule, the input editor, a lower rule, a model and working-path footer, and keyboard hints; tiny terminals reduce this layout. Interactive selectors, inspection-only workflow views (with no executor), voice controls, and login prompts share the shell, and standalone panels retain real controls rather than a pretend editable draft.
 
-Submitted prompts render with a labeled tinted band and a structural gutter, while
-assistant deltas extend an explicitly typed reply rather than inferring roles from
+Submitted prompts render with a full-width highlight, an indented `Your prompt` caption, and a single `>` marker on the first line of text. Wrapped and subsequent lines indent without a vertical gutter. Monochrome output keeps the same layout. Assistant replies retain literal code.
+
+Assistant deltas extend an explicitly typed reply rather than inferring roles from
 prose. When loading saved results, the transcript derives roles directly from the
 recorded attempt inputs and outputs. Markdown, code fences, indentation, and
 newlines are rendered literally without introducing a new Markdown engine or
@@ -79,6 +80,8 @@ wrapped rows. When older content is evicted, the transcript discloses the evicti
 and removes evicted headings as jump targets, though `/result` still reads the
 full saved output separately. Non-demo chrome labels the session as fresh native
 context to make clear that displayed history does not imply provider memory.
+
+Model browsing and route explanations remain offline. When a submitted prompt cannot auto-route solely because the model catalog is stale, UCLI runs one bounded metadata-refresh pass across eligible linked accounts and replans without submitting or retrying AI work. Independent account, model, effort, and permission pins stay intact. If the refresh fails, the prompt is preserved, and stale-catalog errors no longer append unrelated full-local-access permission advice.
 
 When slash completion is not open, pressing `Tab` opens the action discovery menu while keeping the committed selection separate from transient menu focus: type to filter, use wrapping `Up` and `Down` keys to move focus, press `Enter` to confirm, or press `Escape` to cancel while preserving in-progress composition.
 

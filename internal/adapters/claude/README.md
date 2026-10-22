@@ -98,7 +98,10 @@ Reviewed official references: [CLI reference](https://code.claude.com/docs/en/cl
 [settings](https://code.claude.com/docs/en/settings),
 [environment](https://code.claude.com/docs/en/env-vars), and
 [subscription billing](https://support.claude.com/en/articles/11145838-use-claude-code-with-your-pro-or-max-plan).
-The reviewed native version is 2.1.299. Actual live receipts remain under `.build`;
+Reviewed profiles retain 2.1.299 and add Windows amd64 2.1.304 with exact SHA-256
+`019e5174d5d954585edb1a946fe280e44a973050b4897034adf0e16306f85fdd`.
+Inspection reports the matched profile version. Optional runtime acquisition
+remains independently pinned to 2.1.299. Actual live receipts remain under `.build`;
 receipt scope, OS support and fixture coverage must be reported separately.
 
 The first authorized Windows native smoke test reached a matching failed native

@@ -42,6 +42,15 @@ refresh and can take several seconds. Unknown status refuses automatic replaceme
 of an existing identity. A changed account fingerprint clears its cached models
 and blocks the old connection until it is explicitly removed and connected again.
 
+When a submitted prompt encounters an expired catalog, UCLI makes one bounded
+metadata-refresh pass and replans before dispatch. It does not retry AI work or
+change model, account, effort or permission pins. Browsing and route explanations
+stay offline. Ordinary status never replaces an execution fingerprint. After a
+reviewed native CLI update, explicitly reuse the account in `/login` or run
+`ucli login PROVIDER --no-input`; fresh same-account checks can retain the existing
+connection ID while adopting the reviewed build. Unsupported builds and changed
+accounts remain blocked without replacing their prior references.
+
 `login PROVIDER --no-input` links an authenticated account and refuses unfinished
 interactive sign-in. `accounts add PROVIDER` records and checks the connection
 without starting sign-in. `logout ID` and `accounts remove ID` unlink UCLI metadata;
