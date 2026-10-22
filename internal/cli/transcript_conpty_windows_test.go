@@ -53,15 +53,15 @@ func TestPackagedConPTYTranscriptNavigation(t *testing.T) {
 	p.send(t, "\x1b[1;5A") // Ctrl+Up: latest prompt, not the first retained prompt.
 	awaitShellFrame(t, p, p.resizes, "transcript-latest-prompt", func(f shellCapturedFrame) bool {
 		return shellFramePrompt(f, 80, 24, "Ready", "> "+draft) &&
-			strings.Contains(f.Rows[3], "| Your prompt") &&
-			strings.Contains(f.Rows[4], "| LATEST TASK 日本語") &&
+			strings.Contains(f.Rows[3], "  Your prompt") &&
+			strings.Contains(f.Rows[4], "> LATEST TASK 日本語") &&
 			strings.Contains(strings.Join(f.Rows, "\n"), "Following paused")
 	})
 	p.resize(t, 60, 20)
 	awaitShellFrame(t, p, p.resizes, "transcript-anchor-resized", func(f shellCapturedFrame) bool {
 		return shellFramePrompt(f, 60, 20, "Ready", "> "+draft) &&
-			strings.Contains(f.Rows[3], "| Your prompt") &&
-			strings.Contains(f.Rows[4], "| LATEST TASK 日本語")
+			strings.Contains(f.Rows[3], "  Your prompt") &&
+			strings.Contains(f.Rows[4], "> LATEST TASK 日本語")
 	})
 	p.send(t, "\x1b[1;5F") // Ctrl+End independently resumes the live output tail.
 	awaitShellFrame(t, p, p.resizes, "transcript-latest-output", func(f shellCapturedFrame) bool {
@@ -119,9 +119,9 @@ func transcriptDefaultBandMatches(frame shellCapturedFrame) bool {
 	for row, text := range frame.Rows {
 		expect := false
 		switch {
-		case strings.HasPrefix(text, "| Your prompt"):
+		case strings.HasPrefix(text, "  Your prompt"):
 			caption, expect = true, true
-		case strings.HasPrefix(text, "| Explain this local demonstration"):
+		case strings.HasPrefix(text, "> Explain this local demonstration"):
 			prompt, expect = true, true
 		case strings.HasPrefix(text, "Assistant"):
 			reply = true
@@ -155,8 +155,8 @@ func TestTranscriptBandPredicateRejectsMissingPaddingAndWrongContrast(t *testing
 	frame.Rows[0] = "UCLI version"
 	frame.Rows[1] = "read-only | effort auto"
 	frame.Rows[2] = strings.Repeat("\u2500", 79)
-	frame.Rows[3] = "| Your prompt"
-	frame.Rows[4] = "| Explain this local demonstration"
+	frame.Rows[3] = "  Your prompt"
+	frame.Rows[4] = "> Explain this local demonstration"
 	frame.Rows[5] = "Assistant \u00b7 demo/fast"
 	frame.Rows[6] = "Your task and this simulated result are saved."
 	frame.Rows[18] = "[OK] Ready"

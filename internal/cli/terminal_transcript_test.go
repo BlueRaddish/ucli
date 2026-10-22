@@ -36,7 +36,7 @@ func TestTranscriptConsumesTypedPromptsAndStreamingWithoutInferringRoles(t *test
 		t.Fatalf("stream added text, lost code indentation, or repeated headings: %#v", records[3])
 	}
 	view := p.model.View().Content
-	if !strings.Contains(view, "| Your prompt") || !strings.Contains(view, "  fmt.Println") || strings.Contains(view, "\x1b") || strings.Count(view, "Actual provider status") != 1 {
+	if !strings.Contains(view, "  Your prompt") || !strings.Contains(view, "  fmt.Println") || strings.Contains(view, "\x1b") || strings.Count(view, "Actual provider status") != 1 {
 		t.Fatalf("role/code/notice presentation regressed: %q", view)
 	}
 }
@@ -60,7 +60,7 @@ func TestTranscriptLatestPromptAndOutputAreSeparateStableTargets(t *testing.T) {
 	}
 	p.Send(tea.KeyPressMsg(tea.Key{Code: tea.KeyUp, Mod: tea.ModCtrl}))
 	jump := p.model.View()
-	if !strings.Contains(jump.Content, "| LATEST PROMPT 日本語") || strings.Contains(jump.Content, "| OLDER PROMPT") || strings.Contains(jump.Content, "Latest prompt · Ctrl+Up") || !strings.Contains(jump.Content, "Following paused") {
+	if !strings.Contains(jump.Content, "> LATEST PROMPT 日本語") || strings.Contains(jump.Content, "> OLDER PROMPT") || strings.Contains(jump.Content, "Latest prompt · Ctrl+Up") || !strings.Contains(jump.Content, "Following paused") {
 		t.Fatalf("jump selected the wrong prompt or left its heading hidden: %q", jump.Content)
 	}
 	if jump.Cursor == nil || *jump.Cursor != *before.Cursor || len(u.events) != 0 || p.model.shell.composer.Lines[0].Text != "> untouched draft" {
@@ -140,7 +140,7 @@ func TestTranscriptPromptBandUsesPairedColorsAndMonochromeStructure(t *testing.T
 			p.Send(tea.BackgroundColorMsg{Color: theme.background})
 		}
 		view := p.model.View().Content
-		if !strings.Contains(view, "\x1b["+theme.paired+"m| Your prompt") || !strings.Contains(view, "\x1b["+theme.paired+"m| A real prompt") {
+		if !strings.Contains(view, "\x1b["+theme.paired+"m  Your prompt") || !strings.Contains(view, "\x1b["+theme.paired+"m> A real prompt") {
 			t.Fatal("prompt band lost the exact foreground/background pair or structural caption")
 		}
 	}
@@ -160,6 +160,52 @@ func TestTranscriptPromptBandUsesPairedColorsAndMonochromeStructure(t *testing.T
 	}
 }
 
+func TestTranscriptPromptArrowMarksOnlyFirstSourceRow(t *testing.T) {
+	record := transcriptRecord{ID: 42, Role: transcriptPrompt, Text: "Long first prompt line\n  code\n| literal content"}
+	for _, width := range []int{12, 80} {
+		var builder transcriptRowsBuilder
+		appendRecordRows(record, width, &builder)
+		rows := builder.finish()
+		if rows[0].Text != "  Your prompt" || rows[0].anchor != (transcriptAnchor{42, -1}) {
+			t.Fatalf("caption or jump anchor changed: %+v", rows[0])
+		}
+		arrows := 0
+		for i, row := range rows {
+			if !row.Band {
+				t.Fatal("prompt continuation lost its highlight")
+			}
+			if i == 0 {
+				continue
+			}
+			prefix := "  "
+			if i == 1 {
+				prefix = "> "
+			}
+			if !strings.HasPrefix(row.Text, prefix) {
+				t.Fatalf("repeated gutter/marker at width %d: %q", width, row.Text)
+			}
+			if strings.HasPrefix(row.Text, "> ") {
+				arrows++
+			}
+			if row.anchor.ID != record.ID || row.anchor.Offset < 0 {
+				t.Fatal("marker changed source identity")
+			}
+		}
+		if arrows != 1 || rows[1].anchor.Offset != 0 {
+			t.Fatal("one submitted prompt needs one source-start arrow")
+		}
+		if width == 80 && (rows[2].Text != "    code" || rows[3].Text != "  | literal content") {
+			t.Fatal("continuation indentation or literal input changed")
+		}
+	}
+	// A source tail retained after pruning must not acquire a fresh-start arrow.
+	var builder transcriptRowsBuilder
+	appendRecordRows(transcriptRecord{ID: 42, Role: transcriptPrompt, Base: 20, Text: "tail"}, 80, &builder)
+	if row := builder.finish()[1]; row.Text != "  tail" || row.anchor.Offset != 20 {
+		t.Fatal("pruned source appeared as a new prompt")
+	}
+}
+
 func TestTranscriptExitKeepsBoundedDiagnosticTail(t *testing.T) {
 	u, p := shellHarness(t, 80, 24, false)
 	p.Send(terminalMessageMsg{Role: transcriptAssistant, Start: true, Text: strings.Repeat("Saved body\n", 1000) + "Final reply line"})
@@ -174,7 +220,7 @@ func TestTranscriptExplicitNewPromptResumesFollowing(t *testing.T) {
 	_, p := transcriptFixture(t)
 	p.Send(tea.KeyPressMsg(tea.Key{Code: tea.KeyUp, Mod: tea.ModCtrl}))
 	p.Send(terminalMessageMsg{Role: transcriptPrompt, Start: true, Text: "A new explicit submission"})
-	if p.model.shell.paused || !strings.Contains(p.model.View().Content, "| A new explicit submission") {
+	if p.model.shell.paused || !strings.Contains(p.model.View().Content, "> A new explicit submission") {
 		t.Fatal("a new submission stayed hidden behind an old reading anchor")
 	}
 }

@@ -173,7 +173,7 @@ func appendRecordRows(record transcriptRecord, width int, rows *transcriptRowsBu
 			}
 		}
 		if band {
-			prefix = "| "
+			prefix = "  "
 		}
 		rows.add(transcriptRow{terminalLine{Text: prefix + label, Band: band, Dim: !band}, transcriptAnchor{record.ID, -1}})
 	}
@@ -183,7 +183,11 @@ func appendRecordRows(record transcriptRecord, width int, rows *transcriptRowsBu
 		start, used := offset, 0
 		var line strings.Builder
 		flush := func() {
-			rows.add(transcriptRow{terminalLine{Text: prefix + line.String(), Band: band}, transcriptAnchor{record.ID, start}})
+			marker := prefix
+			if band && start == 0 {
+				marker = "> "
+			}
+			rows.add(transcriptRow{terminalLine{Text: marker + line.String(), Band: band}, transcriptAnchor{record.ID, start}})
 			line.Reset()
 			used = 0
 		}
