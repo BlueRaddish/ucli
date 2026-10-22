@@ -105,7 +105,7 @@ func (a *App) resolveRoute(ctx context.Context, opt Options, verifyRuntime bool)
 		return core.Route{}, "", err
 	}
 	if !opt.Demo {
-		route, executable, _, err := a.resolveNativeRoute(ctx, opt)
+		route, executable, _, err := a.resolveNativeRoute(ctx, opt, false)
 		return route, executable, err
 	}
 	if selection.Permission != "read-only" {

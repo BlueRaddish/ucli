@@ -31,7 +31,7 @@ func Resolve(req Request) (Decision, error) {
 		req.Preference = Balanced
 	}
 	if req.MaxCatalogAge == 0 {
-		req.MaxCatalogAge = 24 * time.Hour
+		req.MaxCatalogAge = DefaultCatalogAge
 	}
 	if req.MaxQuotaAge == 0 {
 		req.MaxQuotaAge = 2 * time.Minute

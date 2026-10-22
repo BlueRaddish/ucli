@@ -10,6 +10,9 @@ import (
 
 type Preference string
 
+// DefaultCatalogAge bounds cached automatic model selection.
+const DefaultCatalogAge = 24 * time.Hour
+
 const (
 	Balanced Preference = "balanced"
 	Faster   Preference = "faster"

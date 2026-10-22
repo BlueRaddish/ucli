@@ -293,7 +293,7 @@ func (a *App) Run(ctx context.Context, opt Options, emit func(core.Event) error)
 	if opt.Demo {
 		route, executable, err = a.resolveRoute(ctx, opt, true)
 	} else {
-		route, executable, binding, err = a.resolveNativeRoute(ctx, opt)
+		route, executable, binding, err = a.resolveNativeRoute(ctx, opt, true)
 	}
 	if err != nil {
 		draft, saveErr := a.DraftAt(ctx, opt.TaskID, opt.Input, opt.CWD, requested, opt.ExpectedRevision)

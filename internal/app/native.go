@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 
@@ -58,7 +59,7 @@ func (a *App) nativeModels() []core.Model {
 	return nativeCatalogModels(items)
 }
 
-func (a *App) resolveNativeRoute(ctx context.Context, opt Options) (core.Route, string, *adapters.NativeBinding, error) {
+func (a *App) resolveNativeRoute(ctx context.Context, opt Options, refreshStale bool) (core.Route, string, *adapters.NativeBinding, error) {
 	fail := func(err error) (core.Route, string, *adapters.NativeBinding, error) {
 		return core.Route{}, "", nil, err
 	}
@@ -74,7 +75,58 @@ func (a *App) resolveNativeRoute(ctx context.Context, opt Options) (core.Route, 
 	if err != nil {
 		return fail(err)
 	}
-	return planNativeRoute(w, selection, items, time.Now().UTC())
+	var refresh func(context.Context, string) (connections.Connection, error)
+	if refreshStale {
+		refresh = func(ctx context.Context, id string) (connections.Connection, error) {
+			svc, err := connections.New(a.Home)
+			if err != nil {
+				return connections.Connection{}, err
+			}
+			return svc.Status(ctx, id)
+		}
+	}
+	return planNativeRouteWithRefresh(ctx, w, selection, items, time.Now().UTC(), refresh)
+}
+
+// Refresh only on submission after a stale-catalog refusal. Browsing/explain use
+// a nil callback. One bounded pass never signs in, rebinds, submits, or retries AI work.
+func planNativeRouteWithRefresh(ctx context.Context, w core.Workspace, selection core.Selection, items []connections.Connection, now time.Time, refresh func(context.Context, string) (connections.Connection, error)) (core.Route, string, *adapters.NativeBinding, error) {
+	route, executable, binding, err := planNativeRoute(w, selection, items, now)
+	var problem *core.Error
+	if refresh == nil || !errors.As(err, &problem) || problem.Code != "native_catalog_stale" {
+		return route, executable, binding, err
+	}
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	items = append([]connections.Connection(nil), items...)
+	for i, item := range items {
+		if selection.Account != "auto" && selection.Account != item.ID && selection.Account != item.Label {
+			continue
+		}
+		if item.AuthState != "authenticated" || item.Compatibility == "unknown" || item.Identity == "" || item.SHA256 == "" ||
+			!(item.Provider == "codex" && item.AuthMode == "chatgpt" || item.Provider == "claude" && item.AuthMode == "claude.ai") {
+			continue
+		}
+		if !item.ObservedAt.IsZero() && !item.ObservedAt.After(now) && now.Sub(item.ObservedAt) <= routing.DefaultCatalogAge {
+			continue
+		}
+		if err = ctx.Err(); err != nil {
+			return core.Route{}, "", nil, err
+		}
+		updated, refreshErr := refresh(ctx, item.ID)
+		if refreshErr != nil {
+			return core.Route{}, "", nil, refreshErr
+		}
+		if updated.ID != item.ID || updated.Provider != item.Provider || updated.Identity != item.Identity || updated.SHA256 != item.SHA256 || updated.Executable != item.Executable || updated.NativeHome != item.NativeHome || updated.HomeMode != item.HomeMode || updated.AuthMode != item.AuthMode {
+			return core.Route{}, "", nil, core.Problem("connection_changed", "The account or native CLI changed during refresh. Check this account with /login; your input and selections are kept.", 5)
+		}
+		items[i] = updated
+		route, executable, binding, err = planNativeRoute(w, selection, items, time.Now().UTC())
+		if !errors.As(err, &problem) || problem.Code != "native_catalog_stale" {
+			return route, executable, binding, err
+		}
+	}
+	return route, executable, binding, err
 }
 
 func planNativeRoute(w core.Workspace, selection core.Selection, items []connections.Connection, now time.Time) (core.Route, string, *adapters.NativeBinding, error) {
@@ -195,7 +247,11 @@ func planNativeRoute(w core.Workspace, selection core.Selection, items []connect
 		AllowFirstUse: true, BoundedAttempt: true, Preference: routing.Conserve})
 	if err != nil {
 		if len(decision.ExcludedReasons) > 0 && len(decision.ExcludedReasons[0].Reasons) > 0 {
-			return fail(core.Problem("native_route_policy", decision.ExcludedReasons[0].Reasons[0].Message+" Refresh accounts status for stale catalogs; sandbox explicitly enables full local access.", problemExit(err)))
+			reason := decision.ExcludedReasons[0].Reasons[0]
+			if reason.Code == "catalog" {
+				return fail(core.Problem("native_catalog_stale", "The saved model list needs a refresh. Use /login to check the existing account, or run ucli accounts status. No prompt was sent.", problemExit(err)))
+			}
+			return fail(core.Problem("native_route_policy", reason.Message, problemExit(err)))
 		}
 		return fail(err)
 	}
