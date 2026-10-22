@@ -33,7 +33,8 @@ func newTurnStream(thread, turn string) *turnStream {
 	return &turnStream{thread: thread, turn: turn, items: map[string]*agentItem{}, aux: map[string]*auxItem{}}
 }
 
-func setupEvent(e envelope, thread string) error {
+func setupEvent(e envelope, thread string) (err error) {
+	defer func() { err = reviewedNotificationError(e.Method, err) }()
 	f := objectFields(e.Params)
 	if f == nil {
 		return errors.New("Codex notification parameters are malformed")
@@ -71,7 +72,8 @@ func (s *turnStream) append(item *agentItem, delta string, emit func(string) err
 // Agent text is streamed sequentially. Native user/reasoning items are tracked
 // without displaying private payloads; command/file items require explicit full
 // local permission. Rejection never implies native effects were undone.
-func (s *turnStream) consume(e envelope, emit func(string) error) (string, error) {
+func (s *turnStream) consume(e envelope, emit func(string) error) (state string, err error) {
+	defer func() { err = reviewedNotificationError(e.Method, err) }()
 	f := objectFields(e.Params)
 	if f == nil {
 		return "", errors.New("Codex notification parameters are malformed")
@@ -230,6 +232,9 @@ func (s *turnStream) consume(e envelope, emit func(string) error) (string, error
 	case "configWarning":
 		return "", errors.New("Codex reported " + e.Method + " outside the admitted execution envelope")
 	default:
+		if handled, err := s.nativeNotification(e.Method, f); handled {
+			return "", err
+		}
 		if s.native {
 			kind := ""
 			switch e.Method {

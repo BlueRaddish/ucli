@@ -260,6 +260,10 @@ func inspectionHost(mode, dir string) {
 			}
 			os.WriteFile(filepath.Join(dir, "dispatched"), []byte("synthetic"), 0600)
 			write(map[string]any{"id": e.ID, "result": map[string]any{"turn": map[string]any{"id": "native-turn", "status": "inProgress", "items": []any{}}}})
+			if strings.HasPrefix(mode, "inspect-notification-") {
+				notificationFixture(strings.TrimPrefix(mode, "inspect-notification-"), write)
+				return
+			}
 			notify := func(method string, item map[string]any) {
 				write(map[string]any{"method": method, "emittedAtMs": 1, "params": map[string]any{"threadId": "native-thread", "turnId": "native-turn", "item": item}})
 			}
