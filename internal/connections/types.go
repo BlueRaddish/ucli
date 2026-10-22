@@ -29,6 +29,10 @@ type Connection struct {
 	ObservedAt time.Time `json:"observed_at,omitempty"`
 	ManagedAI  bool      `json:"managed_ai"`
 	Models     []Model   `json:"models,omitempty"`
+	// Catalog evidence can come from a newer binary than the execution pin.
+	// Unknown compatibility never erases the native account's durable identity.
+	Compatibility string `json:"compatibility,omitempty"`
+	CatalogSHA256 string `json:"catalog_sha256,omitempty"`
 }
 type Model struct {
 	ID            string   `json:"id"`
@@ -36,6 +40,9 @@ type Model struct {
 	DefaultEffort string   `json:"default_effort,omitempty"`
 	Efforts       []string `json:"efforts,omitempty"`
 	Default       bool     `json:"default"`
+	ResolvedID    string   `json:"resolved_id,omitempty"`
+	EffortState   string   `json:"effort_state,omitempty"`
+	Unavailable   bool     `json:"unavailable,omitempty"`
 }
 type ConnectOptions struct{ Provider, Label, Executable, NativeHome, HomeMode string }
 type Discovered struct {
@@ -82,6 +89,7 @@ func problem(code, message string) error {
 type Service struct {
 	home, directory string
 	inspect         func(context.Context, Connection) (Connection, error)
+	discover        func(context.Context, Connection) ([]Model, error)
 }
 
 // New and List never create directories, launch children or probe credentials.
@@ -92,5 +100,6 @@ func New(home string) (*Service, error) {
 	}
 	s := &Service{home: physical, directory: join(physical, "connections-v1")}
 	s.inspect = s.inspectNative
+	s.discover = discoverCatalog
 	return s, nil
 }

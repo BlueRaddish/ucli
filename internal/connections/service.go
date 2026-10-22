@@ -90,7 +90,7 @@ func (s *Service) Connect(ctx context.Context, o ConnectOptions) (Connection, er
 			if !labelExplicit {
 				o.Label = c.Label
 			}
-			if c.Label != o.Label || !samePath(c.Executable, o.Executable) || c.SHA256 != sha || c.HomeMode != o.HomeMode {
+			if c.Label != o.Label || !samePath(c.Executable, o.Executable) || c.HomeMode != o.HomeMode {
 				return Connection{}, problem("connection_conflict", "This native home is already connected with different metadata. Existing references were kept.")
 			}
 			return s.observe(ctx, c)
@@ -117,8 +117,12 @@ func (s *Service) Status(ctx context.Context, idOrLabel string) (Connection, err
 	return s.observe(ctx, c)
 }
 func (s *Service) observe(ctx context.Context, c Connection) (Connection, error) {
-	if err := verifyExecutable(ctx, c); err != nil {
+	sha, err := executableHash(ctx, c.Executable)
+	if err != nil {
 		return c, err
+	}
+	if sha != c.SHA256 {
+		return s.observeChangedExecutable(ctx, c, sha)
 	}
 	if _, err := os.Lstat(c.NativeHome); os.IsNotExist(err) {
 		// An absent native directory does not rule out shared OS credentials.
@@ -127,16 +131,15 @@ func (s *Service) observe(ctx context.Context, c Connection) (Connection, error)
 		if c.HomeMode == "separate" && c.Provider == "codex" {
 			c.AuthState, c.AuthMode = "signed-out", "none"
 		}
-		c.Models = nil
 	} else if err != nil {
 		return c, problem("connection_home", "Native home could not be inspected; it was left untouched.")
 	} else {
 		if err = checkDirectory(c.NativeHome); err != nil {
 			return c, err
 		}
-		updated, err := s.inspect(ctx, c)
-		if err != nil {
-			return c, err
+		updated, inspectErr := s.inspect(ctx, c)
+		if inspectErr != nil && updated.Compatibility != "unknown" {
+			return c, inspectErr
 		}
 		// Logging out or an unavailable identity must not erase the old account
 		// pin and permit another account to inherit the same connection ID later.
@@ -153,6 +156,15 @@ func (s *Service) observe(ctx context.Context, c Connection) (Connection, error)
 			return c, problem("connection_changed", "Native account identity changed. Remove this local reference and add the intended account explicitly; no credentials were changed.")
 		}
 		c = updated
+		if inspectErr != nil {
+			if c.ObservedAt.IsZero() {
+				c.ObservedAt = time.Now().UTC()
+			}
+			if err = s.append(ctx, c, false); err != nil {
+				return c, err
+			}
+			return c, inspectErr
+		}
 	}
 	c.ObservedAt = time.Now().UTC()
 	c.ManagedAI = false
@@ -161,6 +173,31 @@ func (s *Service) observe(ctx context.Context, c Connection) (Connection, error)
 		return c, err
 	}
 	return c, nil
+}
+
+// A native updater cannot rebind the connection's execution fingerprint or
+// account. Explicit status may inspect metadata from the new file, while the
+// original identity and last good catalog survive a failed refresh.
+func (s *Service) observeChangedExecutable(ctx context.Context, c Connection, sha string) (Connection, error) {
+	c.Compatibility = "unknown"
+	var discoveryErr error
+	if c.Provider == "claude" || c.Provider == "agy" {
+		candidate := c
+		candidate.SHA256, candidate.Version = sha, ""
+		models, err := s.discover(ctx, candidate)
+		discoveryErr = err
+		if err == nil {
+			c.Models, c.CatalogSHA256 = models, sha
+			c.ObservedAt = time.Now().UTC()
+		}
+	}
+	if err := s.append(ctx, c, false); err != nil {
+		return c, err
+	}
+	if discoveryErr != nil {
+		return c, discoveryErr
+	}
+	return c, problem("connection_changed", "Native executable changed. The account reference and cached models were kept; execution compatibility is unknown. No task or login was started.")
 }
 
 // Remove forgets local metadata only. Native logout, revocation and credential
@@ -193,6 +230,9 @@ func (s *Service) Login(ctx context.Context, idOrLabel string, emit func(LoginEv
 	c, err = s.observe(ctx, c)
 	if err != nil {
 		return c, err
+	}
+	if c.Compatibility == "unknown" {
+		return c, problem("connection_login_unavailable", "This native executable has unknown compatibility. Its account reference was kept; use the native sign-in directly until the executable is reviewed.")
 	}
 	if c.AuthState == "authenticated" {
 		return c, emit(LoginEvent{Type: "complete", Message: "Existing native sign-in is connected; no login or account switch was performed."})

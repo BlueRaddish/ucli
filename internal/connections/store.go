@@ -115,7 +115,24 @@ func (s *Service) records(ctx context.Context) ([]record, error) {
 func recordName(r record) string { return fmt.Sprintf("%s.%020d.json", r.Connection.ID, r.Revision) }
 func validRecord(r record) bool {
 	c := r.Connection
-	return r.Format == 1 && r.Revision > 0 && validID(c.ID) && validText(c.Label, 128) && c.Label != "" && !validID(c.Label) && providerKnown(c.Provider) && filepath.IsAbs(c.Executable) && filepath.IsAbs(c.NativeHome) && validText(c.Executable, 32768) && validText(c.NativeHome, 32768) && validHash(c.SHA256) && (c.Identity == "" || validHash(c.Identity)) && (c.HomeMode == "existing" || c.HomeMode == "separate") && (c.AuthState == "unknown" || c.AuthState == "authenticated" || c.AuthState == "signed-out" || c.AuthState == "identity-changed") && validText(c.AuthMode, 64) && validText(c.Version, 128) && validText(c.PlanType, 64) && validModels(c.Models) && c.Isolation == "unverified" && !c.ManagedAI && !c.ObservedAt.IsZero()
+	return validFormat(r) && r.Revision > 0 && validID(c.ID) && validText(c.Label, 128) && c.Label != "" && !validID(c.Label) && providerKnown(c.Provider) && filepath.IsAbs(c.Executable) && filepath.IsAbs(c.NativeHome) && validText(c.Executable, 32768) && validText(c.NativeHome, 32768) && validHash(c.SHA256) && (c.Identity == "" || validHash(c.Identity)) && (c.HomeMode == "existing" || c.HomeMode == "separate") && (c.AuthState == "unknown" || c.AuthState == "authenticated" || c.AuthState == "signed-out" || c.AuthState == "identity-changed") && validText(c.AuthMode, 64) && validText(c.Version, 128) && validText(c.PlanType, 64) && validModels(c.Models) && (c.Compatibility == "" || c.Compatibility == "unknown" || c.Compatibility == "reviewed") && (c.CatalogSHA256 == "" || validHash(c.CatalogSHA256)) && c.Isolation == "unverified" && !c.ManagedAI && !c.ObservedAt.IsZero()
+}
+
+// Format 1 remains byte-for-byte readable. Extended evidence is written only
+// as format 2; older binaries must refuse it rather than ignore admission data.
+func validFormat(r record) bool {
+	if r.Format == 2 {
+		return true
+	}
+	if r.Format != 1 || r.Connection.Compatibility != "" || r.Connection.CatalogSHA256 != "" {
+		return false
+	}
+	for _, m := range r.Connection.Models {
+		if m.ResolvedID != "" || m.EffortState != "" || m.Unavailable {
+			return false
+		}
+	}
+	return true
 }
 func validModels(models []Model) bool {
 	if len(models) > 256 {
@@ -124,7 +141,7 @@ func validModels(models []Model) bool {
 	seen := map[string]bool{}
 	defaults := 0
 	for _, m := range models {
-		if m.ID == "" || !validText(m.ID, 256) || !validText(m.Name, 256) || !validText(m.DefaultEffort, 32) || len(m.Efforts) > 16 || seen[m.ID] {
+		if !validText(m.ResolvedID, 256) || (m.EffortState != "" && m.EffortState != "unknown" && m.EffortState != "supported" && m.EffortState != "unsupported") || (m.EffortState == "unsupported" && len(m.Efforts) > 0) || (m.EffortState == "supported" && len(m.Efforts) == 0) || m.ID == "" || !validText(m.ID, 256) || !validText(m.Name, 256) || !validText(m.DefaultEffort, 32) || len(m.Efforts) > 16 || seen[m.ID] {
 			return false
 		}
 		seen[m.ID] = true
@@ -152,7 +169,7 @@ func (s *Service) append(ctx context.Context, c Connection, removed bool) error 
 	if err != nil {
 		return err
 	}
-	r := record{Format: 1, Revision: 1, Removed: removed, Connection: c}
+	r := record{Format: 2, Revision: 1, Removed: removed, Connection: c}
 	for _, old := range records {
 		if old.Connection.ID == c.ID {
 			if old.Revision == ^uint64(0) {

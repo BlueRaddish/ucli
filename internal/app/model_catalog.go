@@ -51,7 +51,7 @@ func (a *App) ModelCatalog(ctx context.Context) (ModelCatalog, error) {
 func providerCatalog(items []connections.Connection, present map[string]bool) []ProviderCatalog {
 	providers := []ProviderCatalog{
 		{ID: "codex", Name: "Codex", Integration: "experimental", Reason: "A linked ChatGPT account and a reviewed Codex version are required.", NextStep: "Use the account already signed in on this computer, or sign in through Codex."},
-		{ID: "claude", Name: "Claude Code", Integration: "experimental", Reason: "The adapter is reviewed for Claude Code " + claude.Version + ". Other installed versions remain unavailable until reviewed.", NextStep: "Check the existing Claude sign-in. An unsupported version is not a signed-out account."},
+		{ID: "claude", Name: "Claude Code", Integration: "experimental", Reason: "The adapter is reviewed for Claude Code " + claude.Version + ". Model metadata is discovered natively; unreviewed builds remain unavailable for execution.", NextStep: "Check the existing Claude sign-in. An unsupported version is not a signed-out account."},
 		{ID: "agy", Name: "Antigravity (AGY)", Integration: "catalog-only", Reason: "Native model names can be inspected; AGY task execution and sign-in verification are not supported in UCLI.", NextStep: "Refresh the native model list here. Use Antigravity itself to sign in and run its models."},
 		{ID: "github", Name: "GitHub", Integration: "identity-only", Reason: "Connects a local GitHub CLI identity. It supplies no AI models and is not a hosted UCLI account.", NextStep: "Use the account already signed in through GitHub CLI, or its browser sign-in."},
 	}
@@ -97,14 +97,18 @@ func nativeCatalogModels(items []connections.Connection) []core.Model {
 		for _, model := range item.Models {
 			id := universalModelID(item.Provider, model.ID)
 			var efforts []string
-			for _, effort := range publicEfforts(model.Efforts) {
+			for _, effort := range nativePublicEfforts(item.Provider, model.Efforts) {
 				efforts = append(efforts, effort.Level)
 			}
-			entry := core.Model{ID: id, Label: model.Name, Runtime: item.Provider, Efforts: efforts, Available: available, Reason: reason}
+			modelAvailable, modelReason := available, reason
+			if limitation := nativeModelLimitation(item, model); limitation != "" {
+				modelAvailable, modelReason = false, limitation
+			}
+			entry := core.Model{ID: id, Label: model.Name, Runtime: item.Provider, Efforts: efforts, Available: modelAvailable, Reason: modelReason}
 			if index, exists := indices[id]; exists {
 				// A signed-out connection must not hide the same model offered
 				// by an authenticated one. No account pin is changed here.
-				if available && !result[index].Available {
+				if modelAvailable && !result[index].Available {
 					result[index] = entry
 				}
 				continue
@@ -113,14 +117,27 @@ func nativeCatalogModels(items []connections.Connection) []core.Model {
 			result = append(result, entry)
 		}
 	}
-	// These are the adapter's existing aliases, not a live entitlement claim.
-	// Keep them discoverable when an account is absent or signed out.
-	for _, model := range claude.Catalog() {
-		id := universalModelID("claude", model.ID)
-		if _, exists := indices[id]; !exists {
-			result = append(result, core.Model{ID: id, Label: model.Name, Runtime: "claude", Efforts: append([]string{}, model.Efforts...),
-				Reason: "Claude alias; connect/check an account and the reviewed Claude Code " + claude.Version + " runtime before selection. Other versions require adapter review."})
-		}
-	}
 	return result
+}
+
+func nativeModelLimitation(item connections.Connection, model connections.Model) string {
+	if item.Compatibility == "unknown" {
+		return "Native executable or catalog compatibility is unknown. Cached model and account references were kept; execution requires review."
+	}
+	if model.Unavailable {
+		return "The native CLI marks this model unavailable. No entitlement or quota is inferred from its listing."
+	}
+	if item.Provider != "claude" {
+		return ""
+	}
+	if model.ResolvedID == "" {
+		return "Native model resolution is unverified. Refresh its catalog before using this model; no alias prefix is assumed."
+	}
+	if model.EffortState == "unsupported" {
+		return "This model reports fixed effort. UCLI currently requires a model with explicit effort choices; no effort setting was invented."
+	}
+	if model.EffortState != "supported" || len(nativePublicEfforts(item.Provider, model.Efforts)) == 0 {
+		return "Native effort capabilities are unknown or not mapped. Refresh its catalog; explicit effort will not be lowered."
+	}
+	return ""
 }

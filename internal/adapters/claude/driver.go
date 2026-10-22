@@ -36,7 +36,11 @@ func (Driver) Execute(ctx context.Context, req adapters.Request, emit func(strin
 	if inspection.Identity != req.Binding.Identity || inspection.AuthMode != req.Binding.AuthMode {
 		return out, fail("claude_identity_changed", "The linked native Claude account changed; relink it explicitly before running.", 5)
 	}
-	return execute(ctx, req, emit)
+	model, _, err := selectedModel(inspection.Models, req.Attempt.Effective)
+	if err != nil {
+		return out, err
+	}
+	return execute(ctx, req, emit, model)
 }
 
 func validateRequest(ctx context.Context, req adapters.Request, emit func(string) error) error {
@@ -57,16 +61,8 @@ func validateRequest(ctx context.Context, req adapters.Request, emit func(string
 	if req.Executable != "" && req.Executable != b.Executable {
 		return fail("claude_binding", "Claude executable differs from its linked native binding.", 5)
 	}
-	known := false
-	for _, m := range Catalog() {
-		if r.Model == "claude/"+m.ID {
-			for _, effort := range m.Efforts {
-				known = known || r.Effort == effort
-			}
-		}
-	}
-	if !known {
-		return fail("claude_model", "Choose a supported Claude alias and explicit low, medium or high effort.", 5)
+	if !strings.HasPrefix(r.Model, "claude/") || !modelToken(strings.TrimPrefix(r.Model, "claude/")) || (r.Effort != "low" && r.Effort != "medium" && r.Effort != "high" && r.Effort != "max") {
+		return fail("claude_model", "Choose a native catalog model and an explicit supported effort.", 5)
 	}
 	if !filepath.IsAbs(req.StateHome) || !filepath.IsAbs(req.Attempt.Workspace.Dir) {
 		return fail("claude_request", "Claude state and workspace paths must be absolute.", 2)
@@ -77,8 +73,12 @@ func validateRequest(ctx context.Context, req adapters.Request, emit func(string
 // execute is private so fixture transports cannot bypass public native admission.
 // Once the input can have reached Claude, cancellation is unknown until a matching
 // result is observed. Killing the local process is never a remote stop receipt.
-func execute(ctx context.Context, req adapters.Request, emit func(string) error) (out adapters.Outcome, err error) {
+func execute(ctx context.Context, req adapters.Request, emit func(string) error, selected Model) (out adapters.Outcome, err error) {
 	out.State = "failed"
+	_, nativeEffort, err := selectedModel([]Model{selected}, req.Attempt.Effective)
+	if err != nil {
+		return out, err
+	}
 	dispatched := false
 	defer func() {
 		if dispatched && err != nil {
@@ -127,7 +127,11 @@ func execute(ctx context.Context, req adapters.Request, emit func(string) error)
 		out.State = "interrupted"
 		return out, err
 	}
-	args := arguments(req.Attempt.Effective, session)
+	launchRoute := req.Attempt.Effective
+	// Keep advertised modifiers such as [1m]; resolvedModel is the wire-ID
+	// confirmation, not a replacement for the selected native launch value.
+	launchRoute.Effort = nativeEffort
+	args := arguments(launchRoute, session)
 	cwd := work
 	if req.Attempt.Effective.Permission == "sandbox" {
 		cwd = req.Attempt.Workspace.Dir
@@ -160,7 +164,7 @@ func execute(ctx context.Context, req adapters.Request, emit func(string) error)
 	if err = child.CloseInput(); err != nil {
 		return out, sanitizedProcess(err)
 	}
-	s := stream{session: session, permission: req.Attempt.Effective.Permission, requestedModel: req.Attempt.Effective.Model}
+	s := stream{session: session, permission: req.Attempt.Effective.Permission, requestedModel: req.Attempt.Effective.Model, expectedModel: selected.ResolvedID}
 	defer func() { out.NativeModel = s.model }()
 	var buffer []byte
 	total := 0
@@ -226,7 +230,10 @@ func arguments(r core.Route, session string) []string {
 	if r.Permission == "sandbox" {
 		mode, tools, maxTurns = "bypassPermissions", "default", "30"
 	}
-	args := []string{"--safe-mode", "--setting-sources", "", "--settings", `{"disableAllHooks":true,"disableClaudeAiConnectors":true}`, "--strict-mcp-config", "--mcp-config", `{"mcpServers":{}}`, "--disable-slash-commands", "--no-chrome", "--no-session-persistence", "--permission-mode", mode, "--permission-prompts", "none", "--tools", tools, "--disallowedTools", "mcp__*", "--print", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--max-turns", maxTurns, "--session-id", session, "--effort", r.Effort}
+	args := []string{"--safe-mode", "--setting-sources", "", "--settings", `{"disableAllHooks":true,"disableClaudeAiConnectors":true}`, "--strict-mcp-config", "--mcp-config", `{"mcpServers":{}}`, "--disable-slash-commands", "--no-chrome", "--no-session-persistence", "--permission-mode", mode, "--permission-prompts", "none", "--tools", tools, "--disallowedTools", "mcp__*", "--print", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--max-turns", maxTurns, "--session-id", session}
+	if r.Effort != "" {
+		args = append(args, "--effort", r.Effort)
+	}
 	if r.Model != "claude/default" {
 		args = append(args, "--model", strings.TrimPrefix(r.Model, "claude/"))
 	}

@@ -20,6 +20,9 @@ import (
 
 // This is an actual owned child of the adapter, not a mocked pipe transport.
 func TestMain(m *testing.M) {
+	if len(os.Args) > 1 && os.Args[1] == "--catalog-fixture" {
+		os.Exit(catalogFixtureHost())
+	}
 	if len(os.Args) > 1 && os.Args[1] == "--safe-mode" {
 		os.Exit(fixtureHost())
 	}
@@ -63,6 +66,12 @@ func fixtureHost() int {
 	var f fixture
 	if json.Unmarshal([]byte(input.Message.Content), &f) != nil {
 		return 92
+	}
+	if f.Mode == "modifier" && args["--model"] != "claude-sonnet-fixture[1m]" {
+		return 102
+	}
+	if f.Mode == "wire" && args["--model"] != "claude-sonnet-fixture" {
+		return 103
 	}
 	if _, err := os.Stat(f.Marker); err != nil {
 		return 93
@@ -176,7 +185,7 @@ func TestOwnedNativeProtocol(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 			defer cancel()
 			var output strings.Builder
-			out, err := execute(ctx, req, func(s string) error { output.WriteString(s); return nil })
+			out, err := fixtureExecute(ctx, req, func(s string) error { output.WriteString(s); return nil })
 			if mode == "complete" || mode == "sandbox" {
 				if err != nil || out.State != "complete" || output.String() != "fixture reply" || out.NativeModel != "claude-sonnet-fixture" {
 					t.Fatalf("state=%s output=%q error=%v", out.State, output.String(), err)
@@ -231,7 +240,7 @@ func TestOwnedSignedOutStatusExitOne(t *testing.T) {
 func TestProvenanceFailurePreventsChild(t *testing.T) {
 	req := fixtureRequest(t, "complete", "read-only")
 	req.OnContext = func(core.NativeContext) error { return errors.New("SENSITIVE_SYNTHETIC_STORAGE_DETAIL") }
-	out, err := execute(context.Background(), req, func(string) error { return nil })
+	out, err := fixtureExecute(context.Background(), req, func(string) error { return nil })
 	if err == nil || out.State != "failed" || strings.Contains(err.Error(), "SENSITIVE") {
 		t.Fatalf("out=%+v err=%v", out, err)
 	}
@@ -246,7 +255,7 @@ func TestCancellationAfterDispatchRemainsUnknown(t *testing.T) {
 	done := make(chan struct{})
 	var out adapters.Outcome
 	var err error
-	go func() { out, err = execute(ctx, req, func(string) error { return nil }); close(done) }()
+	go func() { out, err = fixtureExecute(ctx, req, func(string) error { return nil }); close(done) }()
 	deadline := time.After(8 * time.Second)
 	for {
 		if _, e := os.Stat(filepath.Join(req.StateHome, "context-receipt.dispatched")); e == nil {
@@ -277,7 +286,7 @@ func TestPublicAdmissionRejectsFixtureExecutable(t *testing.T) {
 	if out.State != "failed" || !errors.As(err, &p) || p.Code != "claude_version" || p.Acceptance != "not-sent" {
 		t.Fatalf("out=%+v err=%v", out, err)
 	}
-	for _, change := range []func(*adapters.Request){func(r *adapters.Request) { r.Binding = nil }, func(r *adapters.Request) { r.Attempt.Effective.Permission = "workspace-write" }, func(r *adapters.Request) { r.Attempt.Effective.Account = "other" }, func(r *adapters.Request) { r.Attempt.Effective.Model = "claude/unknown" }, func(r *adapters.Request) { r.OnContext = nil }} {
+	for _, change := range []func(*adapters.Request){func(r *adapters.Request) { r.Binding = nil }, func(r *adapters.Request) { r.Attempt.Effective.Permission = "workspace-write" }, func(r *adapters.Request) { r.Attempt.Effective.Account = "other" }, func(r *adapters.Request) { r.Attempt.Effective.Model = "other/model" }, func(r *adapters.Request) { r.OnContext = nil }} {
 		r := fixtureRequest(t, "complete", "read-only")
 		change(&r)
 		if err := validateRequest(context.Background(), r, func(string) error { return nil }); err == nil {
@@ -294,7 +303,7 @@ func TestAccountMetadataBindsStatusWithoutTokens(t *testing.T) {
 	status := map[string]any{"loggedIn": true, "authMethod": "claude.ai", "apiProvider": "firstParty", "configDirectory": home, "email": "synthetic@example.invalid", "subscriptionType": "pro"}
 	raw, _ := json.Marshal(status)
 	i, err := inspectStatus(raw, home, "fake-digest")
-	if err != nil || len(i.Identity) != 64 || !i.Models[0].Default || i.Models[0].ID != "default" {
+	if err != nil || len(i.Identity) != 64 || len(i.Models) != 0 {
 		t.Fatalf("inspection=%+v err=%v", i, err)
 	}
 	status["email"] = "changed@example.invalid"
@@ -344,7 +353,7 @@ func TestNativeFailuresAreClassifiedWithoutDiagnosticLeakage(t *testing.T) {
 		t.Run(tc.native, func(t *testing.T) {
 			req := fixtureRequest(t, "error:"+tc.native, "read-only")
 			var output strings.Builder
-			out, err := execute(context.Background(), req, func(s string) error { output.WriteString(s); return nil })
+			out, err := fixtureExecute(context.Background(), req, func(s string) error { output.WriteString(s); return nil })
 			var p *core.Error
 			if !errors.As(err, &p) || p.Code != tc.code || p.Exit != tc.exit || p.Acceptance != "accepted" || out.State != "failed" || output.Len() != 0 || strings.Contains(out.Message, "PRIVATE") || strings.Contains(err.Error(), "PRIVATE") {
 				t.Fatalf("unsafe or incorrect failure out=%+v err=%v textBytes=%d", out, err, output.Len())
@@ -357,7 +366,7 @@ func TestExplicitModelPinRejectsNativeFallback(t *testing.T) {
 	req := fixtureRequest(t, "complete", "read-only")
 	req.Attempt.Effective.Model = "claude/opus"
 	var output strings.Builder
-	out, err := execute(context.Background(), req, func(s string) error { output.WriteString(s); return nil })
+	out, err := fixtureExecute(context.Background(), req, func(s string) error { output.WriteString(s); return nil })
 	var p *core.Error
 	if !errors.As(err, &p) || p.Code != "claude_model_changed" || out.State != "unknown" || output.Len() != 0 {
 		t.Fatalf("mismatched init model admitted: %+v %v", out, err)
@@ -387,7 +396,7 @@ func TestSafeProtocolDiagnosticSurvivesOutcomeMessage(t *testing.T) {
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
-			out, err := execute(ctx, req, func(string) error {
+			out, err := fixtureExecute(ctx, req, func(string) error {
 				if tc.rejectOutput {
 					return errors.New("PRIVATE_CALLBACK_SECRET")
 				}
@@ -406,4 +415,14 @@ func TestSafeProtocolDiagnosticSurvivesOutcomeMessage(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Fixture resolution is explicit input to the same execution boundary. No
+// production prefix/alias fallback exists merely to satisfy these fake models.
+func fixtureExecute(ctx context.Context, req adapters.Request, emit func(string) error) (adapters.Outcome, error) {
+	resolved := "claude-sonnet-fixture"
+	if req.Attempt.Effective.Model == "claude/opus" {
+		resolved = "claude-opus-fixture"
+	}
+	return execute(ctx, req, emit, Model{ID: strings.TrimPrefix(req.Attempt.Effective.Model, "claude/"), ResolvedID: resolved, EffortState: "supported", Efforts: []string{"low"}})
 }

@@ -144,7 +144,6 @@ func (s *Service) inspectNative(ctx context.Context, c Connection) (Connection, 
 		return c, problem("connection_version", "Native executable did not report a recognized version.")
 	}
 	c.Version = string(match[1])
-	c.Models = nil
 	switch c.Provider {
 	case "github":
 		return inspectGitHub(ctx, c)
@@ -226,6 +225,7 @@ func inspectAdapter(ctx context.Context, c Connection) (Connection, error) {
 			return c, err
 		}
 		c.Identity, c.AuthMode, c.PlanType = observed.Identity, observed.AuthMode, observed.PlanType
+		c.Compatibility, c.CatalogSHA256 = "reviewed", c.SHA256
 		c.AuthState = "authenticated"
 		if observed.AuthMode == "none" {
 			c.AuthState = "signed-out"
@@ -238,22 +238,72 @@ func inspectAdapter(ctx context.Context, c Connection) (Connection, error) {
 	}
 	if c.Provider == "claude" {
 		observed, err := claude.Inspect(ctx, binding)
-		if err != nil {
-			return c, err
+		if err != nil && observed.AuthMode == "" {
+			var p *core.Error
+			if !errors.As(err, &p) || p.Code != "claude_version" {
+				return c, err
+			}
+			c.Compatibility = "unknown"
+			models, discoveryErr := discoverCatalog(ctx, c)
+			if discoveryErr == nil {
+				c.Models, c.CatalogSHA256 = models, c.SHA256
+			}
+			return c, discoveryErr
 		}
 		c.Identity, c.AuthMode, c.PlanType = observed.Identity, observed.AuthMode, observed.PlanType
 		c.Version = observed.Version
+		c.Compatibility = "reviewed"
 		c.AuthState = "authenticated"
 		if observed.AuthMode == "none" {
 			c.AuthState = "signed-out"
 		}
-		c.Models = nil
-		for _, model := range observed.Models {
-			c.Models = append(c.Models, Model{ID: model.ID, Name: model.Name, DefaultEffort: model.DefaultEffort, Efforts: append([]string{}, model.Efforts...), Default: model.Default})
+		if err != nil {
+			c.Compatibility = "unknown"
+			return c, err
+		}
+		if len(observed.Models) > 0 {
+			c.Models = claudeModels(observed.Models)
+			c.CatalogSHA256 = c.SHA256
 		}
 		return c, nil
 	}
 	return c, problem("connection_input", "Unsupported structured identity adapter.")
+}
+
+func claudeModels(models []claude.Model) []Model {
+	result := make([]Model, 0, len(models))
+	for _, m := range models {
+		result = append(result, Model{ID: m.ID, Name: m.Name, DefaultEffort: m.DefaultEffort, Efforts: append([]string{}, m.Efforts...), Default: m.Default, ResolvedID: m.ResolvedID, EffortState: m.EffortState, Unavailable: m.Unavailable})
+	}
+	return result
+}
+
+func discoverCatalog(ctx context.Context, c Connection) ([]Model, error) {
+	if c.Provider == "agy" {
+		version, err := run(ctx, c, []string{"--version"}, 10*time.Second, nil)
+		if err != nil {
+			return nil, err
+		}
+		if version.exit != 0 || len(versionPattern.FindSubmatch(bytes.TrimSpace(append(version.stdout, version.stderr...)))) != 2 {
+			return nil, problem("connection_version", "Native executable did not report a recognized version.")
+		}
+		result, err := run(ctx, c, []string{"models"}, 20*time.Second, nil)
+		if err != nil {
+			return nil, err
+		}
+		if result.exit != 0 {
+			return nil, problem("connection_catalog", "Antigravity could not list its models; private diagnostics were discarded.")
+		}
+		return parseAGYModels(result.stdout)
+	}
+	if c.Provider != "claude" {
+		return nil, problem("connection_catalog", "This provider has no separate metadata discovery route.")
+	}
+	models, err := claude.DiscoverModels(ctx, c.Binding())
+	if err != nil {
+		return nil, err
+	}
+	return claudeModels(models), nil
 }
 func inspectGitHub(ctx context.Context, c Connection) (Connection, error) {
 	result, err := run(ctx, c, []string{"auth", "status", "--active", "--hostname", "github.com", "--json", "hosts"}, 20*time.Second, nil)

@@ -27,18 +27,12 @@ type Model struct {
 	ID, Name, DefaultEffort string
 	Efforts                 []string
 	Default                 bool
+	ResolvedID, EffortState string
+	Unavailable             bool
 }
 type Inspection struct {
 	Identity, AuthMode, Version, PlanType, SHA256 string
 	Models                                        []Model
-}
-
-func Catalog() []Model {
-	return []Model{
-		{ID: "default", Name: "Claude native default", DefaultEffort: "medium", Efforts: []string{"low", "medium", "high"}, Default: true},
-		{ID: "sonnet", Name: "Claude Sonnet (native alias)", DefaultEffort: "medium", Efforts: []string{"low", "medium", "high"}},
-		{ID: "opus", Name: "Claude Opus (native alias)", DefaultEffort: "medium", Efforts: []string{"low", "medium", "high"}},
-	}
 }
 
 func fail(code, message string, exit int) error {
@@ -47,21 +41,13 @@ func fail(code, message string, exit int) error {
 	return p
 }
 
-// Inspect launches only native auth status, never inference or a login flow.
+// Inspect launches auth status and zero-user-turn initialization metadata,
+// never inference or a login flow. Execution admission remains build-pinned.
 // Empty SHA256/Version are allowed for initial linking; supplied values must match.
 // Account identity comes from native metadata, never token contents.
 func Inspect(ctx context.Context, b adapters.NativeBinding) (Inspection, error) {
-	if b.HomeMode != "existing" {
-		return Inspection{}, fail("claude_home_mode", "Claude currently supports only an explicitly linked existing native profile; separate credential isolation is not verified.", 3)
-	}
-	if ctx == nil {
-		return Inspection{}, fail("claude_binding", "Claude inspection requires a context.", 2)
-	}
-	if b.Runtime != "claude" || !filepath.IsAbs(b.Executable) || !filepath.IsAbs(b.Home) || strings.ContainsRune(b.Executable+b.Home, 0) {
-		return Inspection{}, fail("claude_binding", "Choose explicit native Claude executable and configuration paths.", 2)
-	}
-	if info, err := os.Lstat(b.Home); err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
-		return Inspection{}, fail("claude_home", "Native Claude configuration directory is unavailable or linked.", 3)
+	if err := validateInspection(ctx, b); err != nil {
+		return Inspection{}, err
 	}
 	digest, err := verifiedExecutable(ctx, b)
 	if err != nil {
@@ -78,7 +64,32 @@ func Inspect(ctx context.Context, b adapters.NativeBinding) (Inspection, error) 
 	if err != nil {
 		return Inspection{}, err
 	}
-	return inspectStatus(raw, b.Home, digest)
+	inspection, err := inspectStatus(raw, b.Home, digest)
+	if err != nil || inspection.AuthMode == "none" {
+		return inspection, err
+	}
+	b.SHA256 = digest
+	inspection.Models, err = DiscoverModels(ctx, b)
+	return inspection, err
+}
+
+func validateInspection(ctx context.Context, b adapters.NativeBinding) error {
+	if b.HomeMode != "existing" {
+		return fail("claude_home_mode", "Claude currently supports only an explicitly linked existing native profile; separate credential isolation is not verified.", 3)
+	}
+	if ctx == nil {
+		return fail("claude_binding", "Claude inspection requires a context.", 2)
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if b.Runtime != "claude" || !filepath.IsAbs(b.Executable) || !filepath.IsAbs(b.Home) || strings.ContainsRune(b.Executable+b.Home, 0) {
+		return fail("claude_binding", "Choose explicit native Claude executable and configuration paths.", 2)
+	}
+	if info, err := os.Lstat(b.Home); err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+		return fail("claude_home", "Native Claude configuration directory is unavailable or linked.", 3)
+	}
+	return nil
 }
 
 func verifiedExecutable(ctx context.Context, b adapters.NativeBinding) (string, error) {
@@ -93,6 +104,20 @@ func verifiedExecutable(ctx context.Context, b adapters.NativeBinding) (string, 
 	}
 	if expected == "" {
 		return "", fail("claude_platform", "No verified Claude executable is available for this platform.", 3)
+	}
+	digest, err := executableDigest(ctx, b)
+	if err != nil {
+		return "", err
+	}
+	if digest != expected {
+		return "", fail("claude_version", "Linked Claude executable does not match its reviewed identity.", 5)
+	}
+	return digest, nil
+}
+
+func executableDigest(ctx context.Context, b adapters.NativeBinding) (string, error) {
+	if info, err := os.Lstat(b.Executable); err != nil || !info.Mode().IsRegular() || info.Size() < 1 || info.Size() > 512<<20 {
+		return "", fail("claude_executable", "Claude executable must be an unlinked regular file.", 3)
 	}
 	file, err := os.Open(b.Executable)
 	if err != nil {
@@ -119,7 +144,7 @@ func verifiedExecutable(ctx context.Context, b adapters.NativeBinding) (string, 
 		}
 	}
 	digest := hex.EncodeToString(h.Sum(nil))
-	if digest != expected || b.SHA256 != "" && b.SHA256 != digest {
+	if b.SHA256 != "" && b.SHA256 != digest {
 		return "", fail("claude_version", "Linked Claude executable does not match its reviewed identity.", 5)
 	}
 	return digest, nil
@@ -177,7 +202,7 @@ func inspectStatus(raw []byte, home, digest string) (Inspection, error) {
 		return Inspection{}, fail("claude_identity", "Native auth status does not match its account metadata.", 5)
 	}
 	fingerprint := sha256.Sum256([]byte("claude\x00" + id))
-	return Inspection{Identity: hex.EncodeToString(fingerprint[:]), AuthMode: "claude.ai", Version: Version, PlanType: text(fields, "subscriptionType"), SHA256: digest, Models: Catalog()}, nil
+	return Inspection{Identity: hex.EncodeToString(fingerprint[:]), AuthMode: "claude.ai", Version: Version, PlanType: text(fields, "subscriptionType"), SHA256: digest}, nil
 }
 
 func samePath(a, b string) bool {

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"ucli.local/ucli/internal/adapters"
+	"ucli.local/ucli/internal/adapters/claude"
 	"ucli.local/ucli/internal/connections"
 	"ucli.local/ucli/internal/core"
 	"ucli.local/ucli/internal/routing"
@@ -107,7 +108,7 @@ func planNativeRoute(w core.Workspace, selection core.Selection, items []connect
 	bindings := map[string]adapters.NativeBinding{}
 	seenPools := map[string]bool{}
 	for _, item := range items {
-		if item.AuthState != "authenticated" || item.Identity == "" || item.SHA256 == "" {
+		if item.AuthState != "authenticated" || item.Identity == "" || item.SHA256 == "" || item.Compatibility == "unknown" {
 			continue
 		}
 		provider := ""
@@ -126,15 +127,48 @@ func planNativeRoute(w core.Workspace, selection core.Selection, items []connect
 			pools = append(pools, routing.PoolSnapshot{Key: pool, Unit: "native-turns", ObservedAt: now})
 			seenPools[item.Provider] = true
 		}
-		for _, model := range item.Models {
+		models := item.Models
+		if item.Provider == "claude" && requested.Model != "auto" {
+			converted := make([]claude.Model, 0, len(models))
+			for _, m := range models {
+				converted = append(converted, claude.Model{ID: m.ID, ResolvedID: m.ResolvedID, EffortState: m.EffortState, Efforts: m.Efforts, Unavailable: m.Unavailable})
+			}
+			chosen, err := claude.ResolveModel(converted, strings.TrimPrefix(requested.Model, "claude/"))
+			if err != nil {
+				continue
+			}
+			models = nil
+			for _, m := range item.Models {
+				if m.ID == chosen.ID {
+					models = []connections.Model{m}
+					break
+				}
+			}
+		}
+		for _, model := range models {
+			if nativeModelLimitation(item, model) != "" {
+				continue
+			}
 			id := universalModelID(item.Provider, model.ID)
 			if requested.Model == "auto" && !model.Default {
 				continue
 			}
+			if requested.Model != "auto" && item.Provider == "claude" && model.ResolvedID != "" && requested.Model == universalModelID(item.Provider, model.ResolvedID) {
+				id = requested.Model
+			}
 			if requested.Model != "auto" && requested.Model != id {
 				continue
 			}
-			efforts := publicEfforts(model.Efforts)
+			efforts := nativePublicEfforts(item.Provider, model.Efforts)
+			if item.Provider == "claude" && requested.Effort == "max" {
+				ranked := false
+				for _, effort := range efforts {
+					ranked = ranked || effort.Level == "max"
+				}
+				if !ranked {
+					continue
+				}
+			}
 			defaultEffort := model.DefaultEffort
 			if defaultEffort == "xhigh" {
 				defaultEffort = "max"
@@ -181,4 +215,13 @@ func problemExit(err error) int {
 		return problem.Exit
 	}
 	return 5
+}
+
+func nativePublicEfforts(provider string, levels []string) []routing.Effort {
+	if provider == "claude" {
+		return publicEfforts(claude.PublicEfforts(levels))
+	}
+	// Codex Inspect already returns public levels, preserving its private native
+	// mapping for fresh dispatch. AGY catalogs have no effort admission here.
+	return publicEfforts(levels)
 }

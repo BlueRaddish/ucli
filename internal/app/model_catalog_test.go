@@ -22,10 +22,13 @@ func TestModelCatalogKeepsUnavailableProvidersDiscoverable(t *testing.T) {
 			t.Fatalf("unadmitted model became selectable: %+v", model)
 		}
 	}
-	for _, id := range []string{"agy/synthetic", "claude/default", "claude/sonnet", "claude/opus"} {
+	for _, id := range []string{"agy/synthetic"} {
 		if !found[id] {
 			t.Fatalf("missing discoverable model %s", id)
 		}
+	}
+	if len(models) != 1 {
+		t.Fatal("fabricated native models were added")
 	}
 	providers := providerCatalog(items, map[string]bool{"claude": true, "agy": true})
 	if len(providers) != 4 || providers[1].Installation != "executable-found" || providers[1].Authentication != "not-checked" ||

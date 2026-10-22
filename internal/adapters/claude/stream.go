@@ -59,12 +59,12 @@ func validUUID(value string) bool {
 }
 
 type stream struct {
-	session, permission, model, requestedModel string
-	failure                                    string
-	initialized, terminal                      bool
-	state                                      string
-	textBytes                                  int
-	assistantText                              bool
+	session, permission, model, requestedModel, expectedModel string
+	failure                                                   string
+	initialized, terminal                                     bool
+	state                                                     string
+	textBytes                                                 int
+	assistantText                                             bool
 }
 
 func (s *stream) consume(raw []byte, emit func(string) error) error {
@@ -90,8 +90,8 @@ func (s *stream) consume(raw []byte, emit func(string) error) error {
 		if s.initialized || text(f, "session_id") != s.session || text(f, "model") == "" {
 			return fail("claude_protocol", "Native Claude session initialization did not match.", 9)
 		}
-		if !matchesModel(s.requestedModel, text(f, "model")) {
-			return fail("claude_model_changed", "Native Claude initialized a model outside the explicitly selected alias.", 5)
+		if s.expectedModel == "" || s.expectedModel != text(f, "model") {
+			return fail("claude_model_changed", "Native Claude initialized a model different from the selected catalog resolution.", 5)
 		}
 		expected := "dontAsk"
 		if s.permission == "sandbox" {
@@ -204,21 +204,6 @@ func (s *stream) consume(raw []byte, emit func(string) error) error {
 		return fail("claude_protocol", "Unsupported native Claude message type.", 9)
 	}
 	return nil
-}
-
-// An explicit alias constrains the native model family. Native default is
-// intentionally dynamic. Assistant model changes never silently widen a pin.
-func matchesModel(alias, model string) bool {
-	switch alias {
-	case "claude/sonnet":
-		return strings.HasPrefix(model, "claude-sonnet-")
-	case "claude/opus":
-		return strings.HasPrefix(model, "claude-opus-")
-	case "claude/default":
-		return strings.HasPrefix(model, "claude-")
-	default:
-		return false
-	}
 }
 
 // Only an allowlisted category leaves this in-memory inspection. Native error
