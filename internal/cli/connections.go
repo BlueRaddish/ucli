@@ -228,10 +228,7 @@ func linkNativeConnection(ctx context.Context, svc connectionService, p invocati
 		if p.command == "accounts add" || p.connectionLabel != "" || p.nativeHome != "" || p.executable != "" || p.separate {
 			return item, usageError("choose provider codex, claude, github or agy when adding or configuring a connection")
 		}
-		item, err = svc.Get(ctx, p.id)
-		if err == nil {
-			item, err = svc.Status(ctx, item.ID)
-		}
+		item, err = recheckLinkedConnection(ctx, svc, p.id)
 	}
 	if err != nil {
 		return item, err
@@ -246,6 +243,16 @@ func linkNativeConnection(ctx context.Context, svc connectionService, p invocati
 		return item, core.Problem("sign_in_required", "Connection saved. Run ucli login "+item.ID+" to finish native sign-in.", 3)
 	}
 	return svc.Login(ctx, item.ID, emit)
+}
+
+// An explicit account-reuse action may verify a reviewed CLI update. Ordinary
+// status/refresh remains observational and never replaces an execution pin.
+func recheckLinkedConnection(ctx context.Context, svc connectionService, id string) (connections.Connection, error) {
+	item, err := svc.Get(ctx, id)
+	if err != nil {
+		return item, err
+	}
+	return svc.Connect(ctx, connections.ConnectOptions{Provider: item.Provider, Label: item.Label, Executable: item.Executable, NativeHome: item.NativeHome, HomeMode: item.HomeMode})
 }
 
 func showConnection(item connections.Connection, o *output) error {
@@ -328,7 +335,7 @@ func (s *session) connectionAction(ctx context.Context, verb, identifier string)
 					screen = s.terminal
 				}
 				item, err := performLoginOperation(ctx, func(ctx context.Context, _ func(connections.LoginEvent) error) (connections.Connection, error) {
-					return svc.Status(ctx, identifier)
+					return recheckLinkedConnection(ctx, svc, identifier)
 				}, s.out, screen)
 				if err == nil {
 					err = showConnection(item, s.out)
