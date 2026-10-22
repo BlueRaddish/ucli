@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"fmt"
 	"io"
 	"strings"
 
@@ -44,15 +43,18 @@ const (
 )
 
 type terminalShell struct {
-	enabled       bool
-	chrome        terminalChrome
-	notice        terminalNotice
-	composer      terminalFrame
-	composerFocus bool
-	transcript    []string
-	bytes         int
-	dropped       bool
-	scroll        int // wrapped rows above the live tail
+	enabled         bool
+	chrome          terminalChrome
+	notice          terminalNotice
+	composer        terminalFrame
+	composerFocus   bool
+	transcript      []transcriptRecord
+	bytes           int
+	dropped         bool
+	nextID, replyID uint64
+	replyLabel      string
+	paused          bool
+	anchor          transcriptAnchor
 }
 
 // Display history is deliberately bounded; durable task results remain in the
@@ -60,17 +62,6 @@ type terminalShell struct {
 // is needed. The current ceiling keeps each resize/repaint bounded to 64 KiB.
 const shellTranscriptBytes = 64 * 1024
 const shellTranscriptLines = 400
-
-func (s *terminalShell) append(text string) {
-	text = streamFragment(text)
-	s.transcript = append(s.transcript, text)
-	s.bytes += len(text)
-	for s.bytes > shellTranscriptBytes || len(s.transcript) > shellTranscriptLines {
-		s.bytes -= len(s.transcript[0])
-		s.transcript = s.transcript[1:]
-		s.dropped = true
-	}
-}
 
 type shellBudget struct {
 	header, body, notice, composer, upperRule, lowerRule, metadata int
@@ -191,6 +182,27 @@ func terminalStyle(line terminalLine, width int, color bool, theme terminalTheme
 	} else if style == "" && line.Dim {
 		style = "2"
 	}
+	if line.Band {
+		// Pair forced backgrounds with readable foregrounds. NO_COLOR retains
+		// the caption/gutter; unknown themes defer to their reverse palette.
+		if theme == themeUnknown {
+			if style == "" {
+				style = "7"
+			} else {
+				style += ";7"
+			}
+		} else {
+			background, foreground := "48;2;35;47;61", "38;2;230;237;243"
+			if theme == themeLight {
+				background, foreground = "48;2;229;237;245", "38;2;31;41;55"
+			}
+			if style == "" {
+				style = foreground
+			}
+			style += ";" + background
+		}
+		text += strings.Repeat(" ", max(0, width-1-cellWidth(text)))
+	}
 	if style == "" {
 		return text
 	}
@@ -299,42 +311,6 @@ func wrapTerminalText(text string, width int) []terminalLine {
 	}
 	rows = append(rows, terminalLine{Text: line.String()})
 	return rows
-}
-
-func (s terminalShell) historyLines(fragment string, width int) []terminalLine {
-	var all []terminalLine
-	if s.dropped {
-		all = append(all, terminalLine{Text: "Earlier display lines omitted · /result opens saved task output.", Dim: true})
-	}
-	for _, text := range s.transcript {
-		all = append(all, wrapTerminalText(text, max(1, width-1))...)
-	}
-	if fragment != "" {
-		all = append(all, wrapTerminalText(fragment, max(1, width-1))...)
-	}
-	return all
-}
-
-func (s terminalShell) history(fragment string, width, rows int) []terminalLine {
-	if rows == 0 {
-		return nil
-	}
-	all := s.historyLines(fragment, width)
-	contentRows := rows
-	if rows >= 3 && len(all) > rows {
-		contentRows--
-	}
-	end := max(contentRows, len(all)-s.scroll)
-	end = min(end, len(all))
-	start := max(0, end-contentRows)
-	visible := append([]terminalLine(nil), all[start:end]...)
-	if contentRows < rows {
-		for len(visible) < contentRows {
-			visible = append(visible, terminalLine{})
-		}
-		visible = append(visible, terminalLine{Text: fmt.Sprintf("PgUp/PgDn output · %d–%d of %d", start+1, end, len(all)), Dim: true})
-	}
-	return visible
 }
 
 // composerViewport preserves the hint on the final row and pans the editor

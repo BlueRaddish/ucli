@@ -144,6 +144,9 @@ func (o *output) finish() error {
 func (o *output) text(text string) error     { return o.write(o.out, safe(text)) }
 func (o *output) progress(text string) error { return o.progressTone(text, toneInfo) }
 func (o *output) progressTone(text string, tone terminalTone) error {
+	if o.terminal != nil && !o.json && tone == toneInfo {
+		return o.notice(text, tone)
+	}
 	if err := o.write(o.errOut, safe(text)); err != nil {
 		return err
 	}
@@ -176,7 +179,7 @@ func (o *output) event(e core.Event) error {
 	}
 	switch e.Type {
 	case "message_delta":
-		return o.text(e.Text)
+		return o.assistant(e.Text)
 	case "accepted":
 		return o.progress("Accepted task " + e.TaskID + "\n")
 	case "warning":

@@ -234,14 +234,17 @@ func dispatch(ctx context.Context, a *app.App, p invocation, o *output) int {
 }
 
 func runTask(ctx context.Context, a *app.App, opt app.Options, o *output) (core.Attempt, error) {
+	replyModel := opt.Selection.Model
 	if !o.json && opt.Demo {
 		_ = o.progress("DEMO - local simulation or explicit native echo; no AI or real account use\nForeground task; detach is unavailable\n")
 	}
 	if !o.json {
 		if route, err := a.Explain(ctx, opt); err == nil {
+			replyModel = route.Model
 			_ = o.progress("Planned route (confirmed in the saved receipt):\n" + routeText(route))
 		}
 	}
+	_ = o.beginReply(replyModel)
 	var hadText, hadWarning atomic.Bool
 	_ = o.notice("Preparing your prompt | Ctrl+C twice to interrupt and exit", toneInfo)
 	_ = o.activity("working", false)
@@ -282,9 +285,9 @@ func runTask(ctx context.Context, a *app.App, opt app.Options, o *output) (core.
 	}
 	if !o.json {
 		if !hadText.Load() && attempt.Output != "" {
-			_ = o.text(attempt.Output)
+			_ = o.assistant(attempt.Output)
 		}
-		if hadText.Load() || attempt.Output != "" {
+		if o.terminal == nil && (hadText.Load() || attempt.Output != "") {
 			_ = o.text("\n")
 		}
 		_ = o.progress(fmt.Sprintf("Task %s | revision %d | %s (saved)\n", attempt.TaskID, attempt.Revision, attempt.State))
@@ -399,9 +402,18 @@ func showTask(task core.Task, attempts []core.Attempt, paging historyPagination,
 		_ = o.text(fmt.Sprintf("Showing %d saved attempts, oldest to newest on this page.\n", len(attempts)))
 	}
 	for _, attempt := range attempts {
-		_ = o.text(fmt.Sprintf("Attempt %s | revision %d | %s\nInput: %s\n", attempt.ID, attempt.Revision, attempt.State, attempt.Input))
-		if attempt.Output != "" {
-			_ = o.text(attempt.Output + "\n")
+		if o.terminal != nil {
+			_ = o.text(fmt.Sprintf("Saved attempt | revision %d | %s\n", attempt.Revision, attempt.State))
+			_ = o.prompt(attempt.Input)
+			_ = o.beginReply(attempt.Effective.Model)
+			if attempt.Output != "" {
+				_ = o.assistant(attempt.Output)
+			}
+		} else {
+			_ = o.text(fmt.Sprintf("Attempt %s | revision %d | %s\nInput: %s\n", attempt.ID, attempt.Revision, attempt.State, attempt.Input))
+			if attempt.Output != "" {
+				_ = o.text(attempt.Output + "\n")
+			}
 		}
 		if attempt.Error != "" {
 			_ = o.text("Outcome: " + attempt.Error + "\n")

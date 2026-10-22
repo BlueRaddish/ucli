@@ -38,7 +38,7 @@ func TestCompletionPopupPreservesShellGeometryAndReachability(t *testing.T) {
 		}
 		// Paging belongs to command selection while completion is active.
 		p.Send(tea.KeyPressMsg(tea.Key{Code: tea.KeyPgDown}))
-		if event, err := u.next(t.Context()); err != nil || event.kind != keyPageDown || p.model.shell.scroll != 0 {
+		if event, err := u.next(t.Context()); err != nil || event.kind != keyPageDown || p.model.shell.paused {
 			t.Fatalf("popup paging reached transcript: %+v %v", event, err)
 		}
 	}

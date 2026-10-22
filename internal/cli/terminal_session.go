@@ -25,6 +25,9 @@ func (s *session) syncTerminalChrome() error {
 		account = label
 	}
 	context := fmt.Sprintf("%s | effort %s | account %s", selection.Permission, selection.Effort, account)
+	if !s.demo {
+		context = selection.Permission + " | fresh native context | effort " + selection.Effort + " | account " + account
+	}
 	if s.demo {
 		context += " | DEMO"
 	}

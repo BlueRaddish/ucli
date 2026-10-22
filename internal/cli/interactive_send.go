@@ -33,7 +33,7 @@ func (s *session) sendDraft(ctx context.Context) error {
 	}
 	submitted := s.task.Draft
 	s.historyOpen, s.historyNext = false, 0
-	_ = s.out.text("\nYou\n" + submitted + "\n\n")
+	_ = s.out.prompt(submitted)
 	_, runErr := runTask(ctx, s.app, s.options(), s.out)
 	if runErr != nil && s.markConflict(runErr, submitted) {
 		return runErr

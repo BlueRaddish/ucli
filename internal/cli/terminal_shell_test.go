@@ -33,16 +33,16 @@ func TestFixedShellNoticesKeepOneCopyOfLoggedErrors(t *testing.T) {
 	_, _ = u.writer.Write([]byte(diagnostic + "\n"))
 	_ = u.notice(terminalNotice{Text: diagnostic, Kind: toneError})
 	_ = u.notice(terminalNotice{Text: "A later action succeeded", Kind: toneSuccess})
-	history := strings.Join(p.model.shell.transcript, "\n")
+	history := p.model.shell.transcriptText()
 	if strings.Count(history, "Cannot open plan.") != 1 || !strings.Contains(history, "Check its path.") {
 		t.Fatalf("notice duplicated or lost the logged diagnostic: %q", history)
 	}
 	_ = u.notice(terminalNotice{Text: "path.", Kind: toneWarning})
-	if !strings.Contains(strings.Join(p.model.shell.transcript, "\n"), "[Warning] path.") {
+	if !strings.Contains(p.model.shell.transcriptText(), "[Warning] path.") {
 		t.Fatal("an unrelated suffix was mistaken for an already logged warning")
 	}
 	_ = u.notice(terminalNotice{Text: "Connection unavailable", Kind: toneWarning})
-	if !strings.Contains(strings.Join(p.model.shell.transcript, "\n"), "[Warning] Connection unavailable") {
+	if !strings.Contains(p.model.shell.transcriptText(), "[Warning] Connection unavailable") {
 		t.Fatal("notice-only warning disappeared from history")
 	}
 }

@@ -40,6 +40,8 @@ const (
 	keyTaskReady
 	keyPageUp
 	keyPageDown
+	keyLatestPrompt
+	keyLatestOutput
 )
 
 type keyEvent struct {
@@ -50,6 +52,7 @@ type keyEvent struct {
 type terminalLine struct {
 	Text         string
 	Focused, Dim bool
+	Band         bool
 	Tone         terminalTone
 }
 
@@ -137,8 +140,9 @@ func (m terminalModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.mascot.closed = true
 		if m.shell.enabled {
 			var final []string
-			for _, text := range m.shell.transcript[max(0, len(m.shell.transcript)-2):] {
-				final = append(final, safe(text))
+			tail := strings.Split(m.shell.transcriptText(), "\n")
+			for _, text := range tail[max(0, len(tail)-2):] {
+				final = append(final, safe(streamFragment(text)))
 			}
 			if m.shell.notice.Text != "" {
 				notice := safe(noticeLine(m.shell.notice).Text)
@@ -173,42 +177,22 @@ func (m terminalModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			text := noticeLine(terminalNotice(value)).Text
 			// Progress errors already write their full diagnostic to the transcript.
 			// Keep notice-only errors in history without repeating that diagnostic.
-			logged := strings.TrimSpace(strings.Join(m.shell.transcript, "\n"))
+			logged := strings.TrimSpace(m.shell.transcriptText())
 			diagnostic := strings.TrimSpace(safe(value.Text))
 			if logged != diagnostic && !strings.HasSuffix(logged, "\n"+diagnostic) {
-				if m.shell.scroll > 0 {
-					m.shell.scroll += len(wrapTerminalText(text, max(1, int(m.ui.width.Load())-1)))
-				}
 				m.shell.append(text)
 			}
 		}
 		m.shell.notice = terminalNotice(value)
+	case terminalMessageMsg:
+		m.shell.message(value)
 	case terminalTranscriptMsg:
-		if m.shell.scroll > 0 {
-			width := max(1, int(m.ui.width.Load())-1)
-			previous := 0
-			if m.fragment != "" {
-				previous = len(wrapTerminalText(m.fragment, width))
-			}
-			m.shell.scroll += max(0, len(wrapTerminalText(string(value), width))-previous)
-		}
 		m.shell.append(string(value))
 		m.fragment = ""
 	case terminalFrameMsg:
 		m.frame = terminalFrame(value)
 		m.shell.composerFocus = len(m.frame.Lines) == 0
 	case terminalFragmentMsg:
-		if m.shell.enabled && m.shell.scroll > 0 {
-			width := max(1, int(m.ui.width.Load())-1)
-			previous, next := 0, 0
-			if m.fragment != "" {
-				previous = len(wrapTerminalText(m.fragment, width))
-			}
-			if value != "" {
-				next = len(wrapTerminalText(string(value), width))
-			}
-			m.shell.scroll = max(0, m.shell.scroll+next-previous)
-		}
 		m.fragment = string(value)
 		m.ui.liveFragment.Store(m.fragment != "")
 	case tea.WindowSizeMsg:
@@ -227,15 +211,9 @@ func (m terminalModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if emit && event.kind != keyInterrupt {
 			m.clearInterruptConfirmation()
 		}
-		if m.shell.enabled && m.shell.composerFocus && !m.shell.composer.Completion.Visible && (event.kind == keyPageUp || event.kind == keyPageDown) {
-			step := max(1, terminalShellBudget(int(m.ui.height.Load()), len(m.shell.composer.Lines), m.shell.chrome.Panel).body-1)
-			maximum := max(0, len(m.shell.historyLines(m.fragment, int(m.ui.width.Load())))-step)
-			m.shell.scroll = min(m.shell.scroll, maximum)
-			if event.kind == keyPageUp {
-				m.shell.scroll = min(maximum, m.shell.scroll+step)
-			} else {
-				m.shell.scroll = max(0, m.shell.scroll-step)
-			}
+		if m.shell.enabled && m.shell.composerFocus && !m.shell.composer.Completion.Visible && (event.kind == keyPageUp || event.kind == keyPageDown || event.kind == keyLatestPrompt || event.kind == keyLatestOutput) {
+			budget := terminalShellBudget(int(m.ui.height.Load()), len(m.shell.composer.Lines), m.shell.chrome.Panel)
+			m.shell.navigate(event.kind, m.fragment, int(m.ui.width.Load()), budget.body)
 			emit = false
 		}
 	}
@@ -270,6 +248,10 @@ func terminalKey(value tea.KeyPressMsg) (keyEvent, bool) {
 		return keyEvent{kind: keyHome}, true
 	case "end", "ctrl+e":
 		return keyEvent{kind: keyEnd}, true
+	case "ctrl+up":
+		return keyEvent{kind: keyLatestPrompt}, true
+	case "ctrl+end":
+		return keyEvent{kind: keyLatestOutput}, true
 	case "pgup", "pageup":
 		return keyEvent{kind: keyPageUp}, true
 	case "pgdown", "pagedown":
