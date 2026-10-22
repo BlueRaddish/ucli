@@ -88,40 +88,102 @@ func TestPackagedConPTYTranscriptNavigation(t *testing.T) {
 	}
 }
 
+// On the verified Windows ConPTY route OSC 11 did not establish a known
+// background. Assert the actual palette-preserving fallback, not an assumed RGB
+// response. Exact known-light/dark pairs are covered through BackgroundColorMsg.
 func TestPackagedConPTYTranscriptBands(t *testing.T) {
 	requireVisibleQA(t)
 	binary := os.Getenv("UCLI_CONPTY_BINARY")
 	if binary == "" {
 		t.Skip("set UCLI_CONPTY_BINARY to a freshly built Windows UCLI executable")
 	}
-	for _, theme := range []struct{ name, response, background string }{
-		{"dark", "rgb:0000/0000/0000", "48;2;35;47;61"},
-		{"light", "rgb:ffff/ffff/ffff", "48;2;229;237;245"},
+	t.Setenv("TERM", "xterm-256color")
+	t.Setenv("COLORTERM", "truecolor")
+	t.Setenv("NO_COLOR", "")
+	p := startConPTYOptions(t, binary, t.TempDir(), t.TempDir(), false, "--no-motion")
+	p.awaitVisible(t, 0, "Enter send")
+	mark := p.send(t, "Explain this local demonstration\r")
+	p.awaitVisible(t, mark, "Ready for your next prompt")
+	awaitShellFrame(t, p, p.resizes, "transcript-band-default-palette", transcriptDefaultBandMatches)
+	p.send(t, "\x04")
+	if code := p.wait(t); code != 0 {
+		t.Fatalf("EOF exit=%d", code)
+	}
+}
+
+func transcriptDefaultBandMatches(frame shellCapturedFrame) bool {
+	if !shellFramePrompt(frame, 80, 24, "Ready", ">") {
+		return false
+	}
+	prompt, caption, reply, answer := false, false, false, false
+	for row, text := range frame.Rows {
+		expect := false
+		switch {
+		case strings.HasPrefix(text, "| Your prompt"):
+			caption, expect = true, true
+		case strings.HasPrefix(text, "| Explain this local demonstration"):
+			prompt, expect = true, true
+		case strings.HasPrefix(text, "Assistant"):
+			reply = true
+		case strings.Contains(text, "this simulated result"):
+			answer = true
+		default:
+			continue
+		}
+		covered := 0
+		for _, span := range frame.Styles {
+			if span.Row != row {
+				continue
+			}
+			if span.Start != covered || span.End <= span.Start || span.End > frame.Width || span.Foreground != "default" || span.Background != "default" || span.Reverse != expect {
+				return false
+			}
+			covered = span.End
+			if covered >= frame.Width-1 {
+				break
+			}
+		}
+		if covered < frame.Width-1 {
+			return false
+		}
+	}
+	return prompt && caption && reply && answer
+}
+
+func TestTranscriptBandPredicateRejectsMissingPaddingAndWrongContrast(t *testing.T) {
+	frame := shellCapturedFrame{Width: 80, Height: 24, Rows: make([]string, 24)}
+	frame.Rows[0] = "UCLI version"
+	frame.Rows[1] = "read-only | effort auto"
+	frame.Rows[2] = strings.Repeat("\u2500", 79)
+	frame.Rows[3] = "| Your prompt"
+	frame.Rows[4] = "| Explain this local demonstration"
+	frame.Rows[5] = "Assistant \u00b7 demo/fast"
+	frame.Rows[6] = "Your task and this simulated result are saved."
+	frame.Rows[18] = "[OK] Ready"
+	frame.Rows[19], frame.Rows[21] = frame.Rows[2], frame.Rows[2]
+	frame.Rows[20] = ">"
+	frame.Rows[22] = "Model auto \u00b7 /work"
+	frame.Rows[23] = "Enter send | Tab actions"
+	for row := 3; row <= 6; row++ {
+		frame.Styles = append(frame.Styles, shellStyleSpan{Row: row, Start: 0, End: 79, Foreground: "default", Background: "default", Reverse: row < 5})
+	}
+	if !transcriptDefaultBandMatches(frame) {
+		t.Fatal("valid paired-default band rejected")
+	}
+	for _, mutate := range []func(*shellCapturedFrame){
+		func(f *shellCapturedFrame) { f.Styles = nil },
+		func(f *shellCapturedFrame) { f.Styles[0].End = 13 },
+		func(f *shellCapturedFrame) { f.Styles[1].Reverse = false },
+		func(f *shellCapturedFrame) { f.Styles[1].Foreground = "red" },
+		func(f *shellCapturedFrame) { f.Styles[1].Background = "red" },
+		func(f *shellCapturedFrame) { f.Styles[2].Reverse = true },
+		func(f *shellCapturedFrame) { f.Styles[3].Reverse = true },
 	} {
-		t.Run(theme.name, func(t *testing.T) {
-			t.Setenv("TERM", "xterm-256color")
-			t.Setenv("COLORTERM", "truecolor")
-			t.Setenv("NO_COLOR", "")
-			p := startConPTYOptions(t, binary, t.TempDir(), t.TempDir(), false, "--no-motion")
-			p.awaitVisible(t, 0, "Enter send")
-			// Reply only to this owned virtual terminal's background query. No
-			// desktop terminal or theme settings are inspected or modified.
-			p.send(t, "\x1b]11;"+theme.response+"\x1b\\")
-			mark := p.send(t, "Explain this local demonstration\r")
-			p.awaitVisible(t, mark, "Ready for your next prompt")
-			awaitShellFrame(t, p, p.resizes, "transcript-band-"+theme.name, func(f shellCapturedFrame) bool {
-				text := strings.Join(f.Rows, "\n")
-				return shellFramePrompt(f, 80, 24, "Ready", ">") &&
-					strings.Contains(text, "| Your prompt") && strings.Contains(text, "| Explain this local") &&
-					strings.Contains(text, "Assistant") && len(f.Colors) > 0
-			})
-			if !strings.Contains(p.snapshot(), theme.background) {
-				t.Fatalf("%s prompt never emitted its paired background", theme.name)
-			}
-			p.send(t, "\x04")
-			if code := p.wait(t); code != 0 {
-				t.Fatalf("EOF exit=%d", code)
-			}
-		})
+		changed := frame
+		changed.Styles = append([]shellStyleSpan(nil), frame.Styles...)
+		mutate(&changed)
+		if transcriptDefaultBandMatches(changed) {
+			t.Fatal("missing/full-row or paired-contrast negative accepted")
+		}
 	}
 }

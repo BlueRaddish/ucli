@@ -78,7 +78,26 @@ def verified_capture(raw, offset, proof):
     expected = (frame.get('width'), frame.get('height'), frame.get('rows'), frame.get('cursor_x'), frame.get('cursor_y'))
     if actual != expected:
         raise ValueError('replayed dimensions, rows or cursor differ from the verified frame')
+    if 'style_spans' in frame and frame['style_spans'] != style_spans(screen):
+        raise ValueError('replayed foreground/background/reverse spans differ from the verified frame')
     return screen
+
+
+def style_spans(screen):
+    """Run-length styles include blank cells, so full-row bands are testable."""
+    spans = []
+    for row in range(screen.lines):
+        start, previous = 0, None
+        for column in range(screen.columns + 1):
+            cell = screen.buffer[row][column] if column < screen.columns else None
+            current = (cell.fg, cell.bg, cell.reverse) if cell else None
+            if current != previous:
+                if previous is not None:
+                    spans.append({'row': row, 'start': start, 'end': column,
+                                  'foreground': previous[0], 'background': previous[1],
+                                  'reverse': previous[2]})
+                start, previous = column, current
+    return spans
 
 
 def self_test():
@@ -99,7 +118,8 @@ def self_test():
     proof = {'observed_offset': len(raw), 'resizes': boundaries,
              'frame': {'width': 60, 'height': 20, 'rows': screen.display,
                        'cursor_x': screen.cursor.x, 'cursor_y': screen.cursor.y,
-                       'raw_bytes': len(raw), 'raw_sha256': hashlib.sha256(raw).hexdigest()}}
+                       'raw_bytes': len(raw), 'raw_sha256': hashlib.sha256(raw).hexdigest(),
+                       'style_spans': style_spans(screen)}}
     assert verified_capture(raw, len(raw), proof).display == screen.display
     for boundary in ({'offset': -1, 'width': 60, 'height': 20},
                      {'offset': True, 'width': 60, 'height': 20},
@@ -112,7 +132,9 @@ def self_test():
         except ValueError:
             continue
         raise AssertionError('invalid offset, dimensions or split UTF-8 accepted')
-    for key, value in (('width', 80), ('cursor_y', 0), ('cursor_x', True), ('raw_sha256', '0'*64), ('rows', ['wrong'])):
+    wrong_styles = [dict(span) for span in style_spans(screen)]
+    wrong_styles[0]['reverse'] = True
+    for key, value in (('width', 80), ('cursor_y', 0), ('cursor_x', True), ('raw_sha256', '0'*64), ('rows', ['wrong']), ('style_spans', wrong_styles)):
         changed = {**proof, 'frame': {**proof['frame'], key: value}}
         try:
             verified_capture(raw, len(raw), changed)

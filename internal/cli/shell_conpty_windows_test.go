@@ -27,14 +27,24 @@ type shellResize struct {
 }
 
 type shellCapturedFrame struct {
-	Rows      []string `json:"rows"`
-	Width     int      `json:"width"`
-	Height    int      `json:"height"`
-	CursorX   int      `json:"cursor_x"`
-	CursorY   int      `json:"cursor_y"`
-	Colors    []string `json:"foreground_colors"`
-	RawBytes  int      `json:"raw_bytes"`
-	RawSHA256 string   `json:"raw_sha256"`
+	Rows      []string         `json:"rows"`
+	Width     int              `json:"width"`
+	Height    int              `json:"height"`
+	CursorX   int              `json:"cursor_x"`
+	CursorY   int              `json:"cursor_y"`
+	Colors    []string         `json:"foreground_colors"`
+	RawBytes  int              `json:"raw_bytes"`
+	RawSHA256 string           `json:"raw_sha256"`
+	Styles    []shellStyleSpan `json:"style_spans"`
+}
+
+type shellStyleSpan struct {
+	Row        int    `json:"row"`
+	Start      int    `json:"start"`
+	End        int    `json:"end"`
+	Foreground string `json:"foreground"`
+	Background string `json:"background"`
+	Reverse    bool   `json:"reverse"`
 }
 
 // This opt-in check consumes an actual packaged process and checks reconstructed

@@ -43,8 +43,14 @@ prompt, checks its saved attempt, jumps to the latest prompt with `Ctrl+Up`,
 resizes while that anchor is visible, and returns to latest output with `Ctrl+End`.
 An unsent editor survives these controls, the action menu, and EOF without another
 attempt. It also rejects emitted mouse-capture modes. `TestPackagedConPTYTranscriptBands`
-uses owned dark/light OSC 11 replies to capture actual colored prompt bands and
-assistant text from the packaged process. The ordinary `TestTranscript*` tests
+checks the actual unknown-background fallback: both prompt rows are inverse across
+their full width, using paired terminal-default foreground/background colors;
+assistant rows remain non-inverse. The shared frame checker retains style spans,
+including blank padding, and rejects missing bands or altered contrast. The tested
+Windows ConPTY route did not establish a known background through OSC 11; the loss
+boundary is unproven, and packaged known-light/dark coverage remains unavailable.
+Ordinary terminal reducer tests deliver explicit background-color messages and
+require the exact light/dark foreground/background RGB pairs. The `TestTranscript*` tests
 cover typed streaming deltas, literal code/Unicode, paused growth, source and wrapped
 cache eviction, and monochrome/tiny layouts. These are verification routes; only
 a fresh execution receipt establishes which packaged checks passed.

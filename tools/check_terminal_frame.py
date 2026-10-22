@@ -3,7 +3,7 @@
 
 Read one JSON object from stdin: raw capture text and optional resize boundaries
 {offset, width, height}, where offsets count UTF-8 bytes in the capture. Output
-visible rows, cursor and used foreground colors. This is an emulated captured
+visible rows, cursor and foreground/background/reverse spans. This is an emulated captured
 screen, not a physical screenshot. No product state or native client is opened.
 """
 import argparse
@@ -17,7 +17,7 @@ import sys
 def inspect(capture):
     # Embedded Python distributions may omit the script directory from sys.path.
     sys.path.insert(0, str(Path(__file__).resolve().parent))
-    from render_terminal import replay_capture
+    from render_terminal import replay_capture, style_spans
     raw = capture['raw'].encode('utf8')
     screen = replay_capture(raw, capture.get('resizes', []))
     colors = sorted({screen.buffer[row][column].fg
@@ -26,7 +26,7 @@ def inspect(capture):
                      and screen.buffer[row][column].fg != 'default'})
     return {'rows': screen.display, 'width': screen.columns, 'height': screen.lines,
             'cursor_x': screen.cursor.x, 'cursor_y': screen.cursor.y,
-            'foreground_colors': colors, 'raw_bytes': len(raw),
+            'foreground_colors': colors, 'style_spans': style_spans(screen), 'raw_bytes': len(raw),
             'raw_sha256': hashlib.sha256(raw).hexdigest(),
             'pyte_version': importlib.metadata.version('pyte'),
             'scope': 'ANSI emulation of captured bytes; not physical pixels or human usability'}
@@ -58,6 +58,14 @@ def self_test():
     assert changed['rows'][18].startswith('[Error]') and changed['rows'][22].startswith('Model auto')
     result = inspect({'raw': raw + '\x1b[H\x1b[31mRED\x1b[m'})
     assert 'red' in result['foreground_colors']
+    band = inspect({'raw': '\x1b[H\x1b[7m' + 'prompt'.ljust(79) + '\x1b[0m\r\nreply'})
+    expected_band = {'row': 0, 'start': 0, 'end': 79, 'foreground': 'default',
+                     'background': 'default', 'reverse': True}
+    assert band['style_spans'][0] == expected_band
+    assert all(not span['reverse'] for span in band['style_spans'] if span['row'] == 1)
+    for control in ('\x1b[Hprompt', '\x1b[H\x1b[7mprompt\x1b[0m' + ' ' * 73,
+                    '\x1b[H\x1b[7;31m' + 'prompt'.ljust(79)):
+        assert inspect({'raw': control})['style_spans'][0] != expected_band, 'wrong/partial band accepted'
     result = inspect({'raw': raw + '\x1b[2J\x1b[Hsmall',
                       'resizes': [{'offset': len(raw.encode()), 'width': 60, 'height': 20}]})
     assert (result['width'], result['height']) == (60, 20) and result['rows'][0].startswith('small')

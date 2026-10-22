@@ -63,7 +63,7 @@ current native-context limitation must remain visible.
 Focused checks use the existing Go and hidden-console routes:
 
 ```console
-go test -p=1 -count=1 ./internal/cli -run 'TestTranscript|TestTerminalShell|TestFramed|TestTerminalCompletion|TestCompletion'
+go test -p=1 -count=1 ./internal/cli -run 'TestTranscript|TestTerminalShell|TestFramed|TestTerminalCompletion|TestCompletion|TestModel|TestConnectionChooser|TestConnectionExplanation'
 go test -p=1 -count=1 ./internal/adapters/claude ./internal/connections ./internal/app
 ```
 
@@ -71,13 +71,20 @@ After freezing sources and building, use the same `UCLI_CONPTY_BINARY`,
 `UCLI_CONPTY_EVIDENCE` and `UCLI_TERMINAL_QA_DEPS` setup described above:
 
 ```console
-go test -p=1 -count=1 ./internal/cli -run '^TestPackagedConPTYTranscript(Navigation|Bands)$'
+go test -p=1 -count=1 ./internal/cli -run '^TestPackagedConPTY(Transcript(Navigation|Bands)|ModelProviderDetails)$'
 ```
 
 The packaged paths exercise prompt/tail targets, fixed editor/footer positions,
-unsent composition, resize, return from actions, recorded light/dark prompt bands
-and monochrome. Retain the raw bytes and observation/frame offsets; render them
-with `tools/render_terminal.py` for inspection. These are owned virtual-console
+unsent composition, resize, return from actions, model-detail inspection and
+monochrome. Check prompt and reply cell styles through the captured frame's
+foreground/background/reverse spans. The observed Windows route retains an
+unknown background despite attempted OSC 11 replies, so its packaged band check
+verifies paired default-color inversion across the full prompt width. Separate
+terminal rendering tests verify exact explicit light/dark RGB pairs. Delivery of
+a known theme in this packaged Windows route remains unverified. Retain the raw
+bytes and exact observation/frame offsets; use `tools/render_terminal.py --frame PATH` to bind
+inspection to the asserted frame, including resize boundaries and cursor. These
+are owned virtual-console
 and ANSI-emulation checks, not desktop screenshots or evidence from other hosts.
 Run the complete `TestPackagedConPTY` family before local delivery.
 

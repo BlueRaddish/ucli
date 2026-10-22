@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"image/color"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -126,14 +127,21 @@ func TestTranscriptWrappedCacheBoundsNewlineAndNarrowOutput(t *testing.T) {
 func TestTranscriptPromptBandUsesPairedColorsAndMonochromeStructure(t *testing.T) {
 	_, p := shellHarness(t, 60, 20, true)
 	p.Send(terminalMessageMsg{Role: transcriptPrompt, Start: true, Text: "A real prompt\n  code indentation"})
-	for _, theme := range []terminalTheme{themeDark, themeLight, themeUnknown} {
-		p.model.theme = theme
-		view := p.model.View().Content
-		if !strings.Contains(view, "| Your prompt") || !strings.Contains(view, "\x1b[") {
-			t.Fatal("prompt band lost its structural or color treatment")
+	for _, theme := range []struct {
+		background color.Color
+		paired     string
+	}{
+		{color.Black, "38;2;230;237;243;48;2;35;47;61"},
+		{color.White, "38;2;31;41;55;48;2;229;237;245"},
+		{nil, "7"},
+	} {
+		p.model.theme = themeUnknown
+		if theme.background != nil {
+			p.Send(tea.BackgroundColorMsg{Color: theme.background})
 		}
-		if theme != themeUnknown && (!strings.Contains(view, "38;2;") || !strings.Contains(view, ";48;2;")) {
-			t.Fatal("forced prompt background lacked a paired foreground")
+		view := p.model.View().Content
+		if !strings.Contains(view, "\x1b["+theme.paired+"m| Your prompt") || !strings.Contains(view, "\x1b["+theme.paired+"m| A real prompt") {
+			t.Fatal("prompt band lost the exact foreground/background pair or structural caption")
 		}
 	}
 	p.model.color = false
