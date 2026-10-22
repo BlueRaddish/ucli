@@ -277,8 +277,10 @@ before running them. No ordinary contributor check should need a personal accoun
 live inference, paid quota or a credential copy.
 
 Live opt-ins are bounded real requests, not retries of a fixture. An unknown
-receipt does not prove remote failure or permit replay. The current native
-integration has no confirmed successful end-to-end AI response. Native unknown
+receipt does not prove remote failure or permit replay. The October 18 native checkpoint did not confirm a successful end-to-end AI
+response; that historical outcome does not describe later device checks. Current
+reviewed profiles are listed in [native sign-in](native-signin.md), and live
+results must be reported separately from fixture passes. Native unknown
 reconciliation is unavailable. The next protocol work is specified in
 [the development priorities](next-development.md); use offline event fixtures
 before another real request.

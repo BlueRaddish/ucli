@@ -67,3 +67,44 @@ owned child fixtures with valid, mismatched, malformed and EOF-only Claude UI
 metadata. These are synthetic protocol checks, not successful model requests.
 Current-device native inference and packaged release verification are separate
 release checks. Non-Windows execution has not been admitted by this update.
+
+## Terminal item summary correction
+
+The first final-device Codex request at source `9b0a26a` emitted the requested
+marker but remained unknown: the reducer incorrectly required a nonempty
+terminal item list to repeat every observed live item. That failed receipt and
+its unknown fence remain retained; the source review below does not reclassify
+the attempt or establish a successful live request.
+
+Both exact reviewed protocol tags define optional `Turn.itemsView`, defaulting
+to `full`, with literal values `full`, `summary` and `notLoaded`. The terminal
+emitters in [0.162.1](https://github.com/openai/codex/blob/rust-v0.162.1/codex-rs/app-server/src/bespoke_event_handling.rs#L1323)
+and [0.163.0](https://github.com/openai/codex/blob/rust-v0.163.0/codex-rs/app-server/src/bespoke_event_handling.rs#L1326)
+construct exactly one `last_agent_message` with view `summary`, or an empty list
+with view `notLoaded`. They do not repeat streamed user, reasoning or tool items,
+and do not include every earlier assistant message. The
+[0.162.1](https://github.com/openai/codex/blob/rust-v0.162.1/codex-rs/app-server/src/thread_state.rs#L199)
+and [0.163.0](https://github.com/openai/codex/blob/rust-v0.163.0/codex-rs/app-server/src/thread_state.rs#L202)
+trackers select the latest completed assistant item with nonblank text and phase
+`final_answer` or absent/null phase. Later blank, commentary or partial-answer
+messages do not replace it. The schema's phase literals are `commentary`,
+`partial_answer` and `final_answer`; absent/null retains legacy compatibility.
+
+The narrow acceptance contract is native-only and view-aware: a summary must be
+exactly that latest eligible completed agent item, with matching ID, text and
+phase. Each observed message and auxiliary lifecycle must already be settled;
+thread/turn identity, status, no-error and nonempty-output requirements still
+apply. Summary metadata cannot authorize tools, change the model, create output
+or settle a missing terminal notification. Unknown/malformed views, mismatched
+summary contents and unsettled live items remain refused. Explicit `notLoaded`
+requires an empty list. Full and legacy omitted-view handling retain their
+existing completion guards; arbitrary subset acceptance is not the contract.
+
+Review evidence is retained privately under
+`.build/current-device-admission-audit/terminal-item-review/source-receipt-v2.json`.
+The exact 0.163.0 emitter source SHA-256 is
+`7ac4d1bf125375c27018d7b0f5741d0bda1673bee147e5b196f61fe01e8280de`;
+the 0.162.1 emitter SHA-256 is
+`f1efb61fb5227a2eb643033f1a95970d256f79d1973df9fc65880bcbba6d2754`.
+This is a source-supported correction with separate fixture and release checks,
+not proof of another native call.

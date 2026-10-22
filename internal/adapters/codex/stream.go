@@ -11,6 +11,7 @@ import (
 type agentItem struct {
 	text     strings.Builder
 	complete bool
+	phase    string
 }
 
 type turnStream struct {
@@ -22,6 +23,7 @@ type turnStream struct {
 	errorKind            string
 	willRetry            bool
 	warningObserved      bool
+	lastFinal            string
 }
 
 type auxItem struct {
@@ -108,6 +110,17 @@ func (s *turnStream) consume(e envelope, emit func(string) error) (state string,
 		if !arrayField(turn, "items", &items) {
 			return "", errors.New("Codex turn items are malformed")
 		}
+		view := "full"
+		if _, present := turn["itemsView"]; present {
+			var ok bool
+			view, ok = textField(turn, "itemsView", 16)
+			if !ok || (view != "full" && view != "summary" && view != "notLoaded") {
+				return "", errors.New("Codex turn items view is unsupported or malformed")
+			}
+		}
+		if view == "notLoaded" && len(items) != 0 || view == "summary" && !s.native {
+			return "", errors.New("Codex turn items view conflicts with the execution envelope")
+		}
 		if e.Method == "turn/started" {
 			if !equals(turn, "status", "inProgress") || !noTurnError(turn["error"]) || len(items) != 0 {
 				return "", errors.New("Codex started event is inconsistent")
@@ -133,14 +146,24 @@ func (s *turnStream) consume(e envelope, emit func(string) error) (state string,
 			if !noTurnError(turn["error"]) || s.active != "" || s.outputBytes == 0 {
 				return "", errors.New("Codex completion lacks settled nonempty output")
 			}
+			for _, item := range s.items {
+				if !item.complete {
+					return "", errors.New("Codex completion has an unsettled agent message")
+				}
+			}
 			for _, item := range s.aux {
 				if !item.complete {
 					return "", errors.New("Codex completion has an unsettled native item")
 				}
 			}
-			// Some app-server terminal turns omit populated items. Completion still
-			// requires each observed message's item/completed receipt. When items
-			// are supplied, they must exactly agree with those receipts.
+			// Both reviewed native profiles emit a summary containing only the last
+			// completed nonblank final/legacy-phase message. This does not replace
+			// the settled lifecycle required above for every observed item.
+			if view == "summary" && (len(items) != 1 || s.lastFinal == "") || view == "notLoaded" && s.native && s.lastFinal != "" {
+				return "", errors.New("Codex terminal summary omits or misstates the final message")
+			}
+			// Legacy empty lists remain supported from item/completed receipts.
+			// A supplied full list must still exactly match every observed item.
 			if len(items) != 0 {
 				seen := map[string]bool{}
 				for _, raw := range items {
@@ -157,9 +180,16 @@ func (s *turnStream) consume(e envelope, emit func(string) error) (state string,
 					if !ok || known == nil || seen[id] || !known.complete || !equals(item, "type", "agentMessage") || !equals(item, "text", known.text.String()) {
 						return "", errors.New("Codex terminal items conflict with completed output")
 					}
+					phase, valid := messagePhase(item)
+					if !valid || phase != known.phase || view == "summary" && id != s.lastFinal {
+						return "", errors.New("Codex terminal message phase or final identity conflicts with completed output")
+					}
 					seen[id] = true
 				}
-				if len(seen) != len(s.items)+len(s.aux) {
+				if view == "summary" && !seen[s.lastFinal] {
+					return "", errors.New("Codex terminal summary does not contain the final agent message")
+				}
+				if view != "summary" && len(seen) != len(s.items)+len(s.aux) {
 					return "", errors.New("Codex terminal items omit observed output")
 				}
 			}
@@ -206,7 +236,8 @@ func (s *turnStream) consume(e envelope, emit func(string) error) (state string,
 			return "", nil
 		}
 		text, textOK := textField(item, "text", core.MaxOutputBytes)
-		if !ok || !validID(id) || !textOK || !equals(item, "type", "agentMessage") {
+		phase, phaseOK := messagePhase(item)
+		if !ok || !validID(id) || !textOK || !phaseOK || !equals(item, "type", "agentMessage") {
 			return "", errors.New("Codex item is outside the text-only fixture envelope")
 		}
 		if e.Method == "item/started" {
@@ -224,6 +255,10 @@ func (s *turnStream) consume(e envelope, emit func(string) error) (state string,
 			return "", err
 		}
 		known.complete, s.active = true, ""
+		known.phase = phase
+		if (phase == "" || phase == "final_answer") && strings.TrimSpace(text) != "" {
+			s.lastFinal = id
+		}
 		return "", nil
 	case "model/rerouted":
 		return "", errors.New("Codex reported a primary model change; the pinned route is no longer confirmed")
@@ -273,3 +308,11 @@ func (s *turnStream) consume(e envelope, emit func(string) error) (state string,
 // Turn.error is optional and nullable in the reviewed native schema. Absence
 // means no error only for this field; failed terminals still require an object.
 func noTurnError(raw json.RawMessage) bool { return len(raw) == 0 || isNull(raw) }
+
+func messagePhase(item map[string]json.RawMessage) (string, bool) {
+	if absentNullable(item["phase"]) {
+		return "", true
+	}
+	phase, ok := textField(item, "phase", 32)
+	return phase, ok && (phase == "commentary" || phase == "partial_answer" || phase == "final_answer")
+}

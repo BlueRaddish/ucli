@@ -260,6 +260,10 @@ func inspectionHost(mode, dir string) {
 			}
 			os.WriteFile(filepath.Join(dir, "dispatched"), []byte("synthetic"), 0600)
 			write(map[string]any{"id": e.ID, "result": map[string]any{"turn": map[string]any{"id": "native-turn", "status": "inProgress", "items": []any{}}}})
+			if strings.HasPrefix(mode, "inspect-terminal-items-") {
+				terminalItemsFixture(strings.TrimPrefix(mode, "inspect-terminal-items-"), write)
+				return
+			}
 			if strings.HasPrefix(mode, "inspect-notification-") {
 				notificationFixture(strings.TrimPrefix(mode, "inspect-notification-"), write)
 				return
