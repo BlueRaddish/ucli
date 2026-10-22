@@ -93,6 +93,9 @@ func (s *Service) Connect(ctx context.Context, o ConnectOptions) (Connection, er
 			if c.Label != o.Label || !samePath(c.Executable, o.Executable) || c.HomeMode != o.HomeMode {
 				return Connection{}, problem("connection_conflict", "This native home is already connected with different metadata. Existing references were kept.")
 			}
+			if sha != c.SHA256 && (c.Provider == "codex" || c.Provider == "claude") {
+				return s.relinkReviewedExecutable(ctx, c, sha)
+			}
 			return s.observe(ctx, c)
 		}
 	}
@@ -196,6 +199,11 @@ func (s *Service) observeChangedExecutable(ctx context.Context, c Connection, sh
 	}
 	if discoveryErr != nil {
 		return c, discoveryErr
+	}
+	if c.Provider == "agy" {
+		// AGY discovery is display-only. Refreshing its catalog does not grant
+		// execution compatibility or replace its native account reference.
+		return c, nil
 	}
 	return c, problem("connection_changed", "Native executable changed. The account reference and cached models were kept; execution compatibility is unknown. No task or login was started.")
 }

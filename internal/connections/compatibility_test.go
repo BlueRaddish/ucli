@@ -154,6 +154,10 @@ func TestConnectionFormatOneReadAndFormatTwoAppend(t *testing.T) {
 func TestAGYUpdateUsesNewFingerprintForMetadataOnly(t *testing.T) {
 	s, o, _ := fixture(t)
 	o.Provider = "agy"
+	s.inspect = func(_ context.Context, c Connection) (Connection, error) {
+		c.AuthState, c.AuthMode = "unknown", "native-keyring"
+		return c, nil
+	}
 	c, err := s.Connect(context.Background(), o)
 	if err != nil {
 		t.Fatal(err)
@@ -172,8 +176,14 @@ func TestAGYUpdateUsesNewFingerprintForMetadataOnly(t *testing.T) {
 		return []Model{{ID: "future-agy", Name: "New native AGY model"}}, nil
 	}
 	updated, err := s.Status(context.Background(), c.ID)
-	requireCode(t, err, "connection_changed")
-	if updated.ID != c.ID || updated.SHA256 != c.SHA256 || updated.CatalogSHA256 != sha || updated.Models[0].ID != "future-agy" || updated.Compatibility != "unknown" {
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.ID != c.ID || updated.SHA256 != c.SHA256 || updated.CatalogSHA256 != sha || updated.Models[0].ID != "future-agy" || updated.Compatibility != "unknown" || updated.AuthState != "unknown" || updated.ManagedAI {
 		t.Fatal("AGY metadata replaced execution pin")
+	}
+	reused, err := s.Connect(context.Background(), o)
+	if err != nil || reused.ID != c.ID || reused.SHA256 != c.SHA256 || reused.CatalogSHA256 != sha || reused.Compatibility != "unknown" || reused.AuthState != "unknown" || reused.ManagedAI {
+		t.Fatal("explicit AGY reuse did not remain display-only", err)
 	}
 }
