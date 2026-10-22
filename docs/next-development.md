@@ -195,7 +195,9 @@ a step complete; agent prose and exit0 alone cannot establish that evidence.
   Legacy mixed
   fractional/offset timestamp spellings follow their text index rather than a new
   chronological normalization. Attempt history remains bounded and adaptive.
-- GitHub sync, CLI extensions, updates and remote CI are unimplemented/unexecuted.
+- GitHub sync, CLI extensions and remote updates remain unimplemented. The
+  three-host GitHub Actions workflow runs the shared verification route; each
+  run establishes its own host-specific results.
   The local installer now supports receipt-owned replacement with retained backup,
   crash recovery and conditional rollback. A remote updater/release installer and
   physical power-loss/noncooperating-filesystem certification remain future work.
