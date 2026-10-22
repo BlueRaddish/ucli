@@ -3,12 +3,13 @@
 This experimental slice connects native accounts through one UCLI vocabulary.
 Credentials remain with the native clients. A connection is a pinned executable,
 native home and opaque account fingerprint; it is not a copied credential store.
-Native execution evidence currently covers Windows x64 with Codex 0.162.1 and
-Claude Code 2.1.299. Other native hosts remain unverified; Codex explicitly refuses
+Reviewed Windows x64 profiles cover Codex 0.162.1/0.163.0 and Claude Code
+2.1.299/2.1.304. Other native hosts remain unverified; Codex explicitly refuses
 other hosts and Darwin owned-process launch is disabled. See the final verification
 receipt for live results. The [installed continuation](verification.md)
-passed account linking and packaged checks, but has no confirmed successful native
-AI response. Its final Codex sandbox read ended unknown on an unsupported execution
+passed account linking and packaged checks. As of that October 18 checkpoint,
+no successful native AI response had been confirmed. Its final Codex sandbox read
+ended unknown on an unsupported execution
 notification. On the verification machine, Claude was signed out when checked on
 2026-10-18; check your own native status with `ucli accounts status`. Native execution
 remains experimental.
