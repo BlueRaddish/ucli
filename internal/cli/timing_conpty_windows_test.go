@@ -49,7 +49,9 @@ func TestPackagedConPTYRichTiming(t *testing.T) {
 			mark := p.send(t, "\x15/models\r")
 			measure(mark, "Choose a model", "open_models")
 			mark = p.send(t, "deep")
-			measure(mark, "Search: deep", "filter_models")
+			// Differential redraw can retain the Search label. Time the new
+			// filtered candidate, which proves the list has responded to input.
+			measure(mark, "demo/deep | available in cached catalog", "filter_models")
 			mark = p.send(t, "\x1b")
 			measure(mark, original.Draft, "cancel_to_composer")
 			p.send(t, "\x15/exit\r")
