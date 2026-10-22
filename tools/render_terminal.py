@@ -34,6 +34,53 @@ def emulator():
     return screen, Stream(screen)
 
 
+def replay_capture(raw, resizes=()):
+    """Replay exactly captured bytes, applying validated out-of-band resizes."""
+    if not isinstance(raw, bytes) or len(raw) > 2 * 1024 * 1024:
+        raise ValueError('capture must be bytes within 2 MiB')
+    if not isinstance(resizes, (list, tuple)):
+        raise ValueError('resize boundaries must be a list')
+    screen, stream = emulator()
+    previous = 0
+    for boundary in resizes:
+        if not isinstance(boundary, dict) or not all(k in boundary for k in ('offset', 'width', 'height')):
+            raise ValueError('invalid resize boundary')
+        offset, width, height = (boundary[k] for k in ('offset', 'width', 'height'))
+        if any(type(v) is not int for v in (offset, width, height)):
+            raise ValueError('resize values must be integers')
+        if not previous <= offset <= len(raw) or not 1 <= width <= 500 or not 1 <= height <= 200:
+            raise ValueError('invalid resize boundary')
+        # Strict decoding also rejects a boundary in the middle of a UTF-8 glyph.
+        stream.feed(raw[previous:offset].decode('utf8'))
+        screen.resize(lines=height, columns=width)
+        previous = offset
+    stream.feed(raw[previous:].decode('utf8'))
+    return screen
+
+
+def verified_capture(raw, offset, proof):
+    """Bind a rendered observation to its saved, already-asserted frame."""
+    if not isinstance(proof, dict) or not isinstance(proof.get('frame'), dict):
+        raise ValueError('saved frame metadata is missing')
+    frame = proof['frame']
+    if type(offset) is not int or not 0 < offset <= len(raw):
+        raise ValueError('invalid observation offset')
+    if type(proof.get('observed_offset')) is not int or any(
+            type(frame.get(k)) is not int for k in ('raw_bytes', 'width', 'height', 'cursor_x', 'cursor_y')):
+        raise ValueError('saved frame coordinates and offsets must be integers')
+    if proof.get('observed_offset') != offset or frame.get('raw_bytes') != offset:
+        raise ValueError('observation and saved frame offsets differ')
+    prefix = raw[:offset]
+    if frame.get('raw_sha256') != hashlib.sha256(prefix).hexdigest():
+        raise ValueError('saved frame does not match the captured byte prefix')
+    screen = replay_capture(prefix, proof.get('resizes', []))
+    actual = (screen.columns, screen.lines, screen.display, screen.cursor.x, screen.cursor.y)
+    expected = (frame.get('width'), frame.get('height'), frame.get('rows'), frame.get('cursor_x'), frame.get('cursor_y'))
+    if actual != expected:
+        raise ValueError('replayed dimensions, rows or cursor differ from the verified frame')
+    return screen
+
+
 def self_test():
     screen, stream = emulator()
     stream.feed('\x1b[2J\x1b[Habc\x1b[2;1HX')
@@ -42,7 +89,37 @@ def self_test():
     assert (screen.columns, screen.lines) == (60, 20)
     stream.feed('\x1b[H\x1b[2K\u4e2d!')
     assert screen.buffer[0][0].data == '\u4e2d' and screen.buffer[0][2].data == '!'
-    print('terminal preview clear/cursor/resize/wide-cell self-check passed')
+    prefix = '\x1b[2J\x1b[H\u65e5\u672c\u8a9e'.encode('utf8')
+    suffix = '\x1b[2J\x1b[Hsmall\x1b[20;3H>'.encode('utf8')
+    raw = prefix + suffix
+    boundaries = [{'offset': len(prefix), 'width': 60, 'height': 20}]
+    screen = replay_capture(raw, boundaries)
+    assert (screen.columns, screen.lines) == (60, 20)
+    assert screen.display[0].startswith('small') and screen.display[19][2] == '>'
+    proof = {'observed_offset': len(raw), 'resizes': boundaries,
+             'frame': {'width': 60, 'height': 20, 'rows': screen.display,
+                       'cursor_x': screen.cursor.x, 'cursor_y': screen.cursor.y,
+                       'raw_bytes': len(raw), 'raw_sha256': hashlib.sha256(raw).hexdigest()}}
+    assert verified_capture(raw, len(raw), proof).display == screen.display
+    for boundary in ({'offset': -1, 'width': 60, 'height': 20},
+                     {'offset': True, 'width': 60, 'height': 20},
+                     {'offset': len(raw)+1, 'width': 60, 'height': 20},
+                     {'offset': 0, 'width': 0, 'height': 20},
+                     {'offset': 0, 'width': 60, 'height': 201},
+                     {'offset': len(prefix)-1, 'width': 60, 'height': 20}):
+        try:
+            replay_capture(raw, [boundary])
+        except ValueError:
+            continue
+        raise AssertionError('invalid offset, dimensions or split UTF-8 accepted')
+    for key, value in (('width', 80), ('cursor_y', 0), ('cursor_x', True), ('raw_sha256', '0'*64), ('rows', ['wrong'])):
+        changed = {**proof, 'frame': {**proof['frame'], key: value}}
+        try:
+            verified_capture(raw, len(raw), changed)
+        except ValueError:
+            continue
+        raise AssertionError('mismatched verified frame accepted: '+key)
+    print('terminal preview clear/cursor/resize/wide-cell, captured frame equality and invalid-boundary controls passed')
 
 
 def main():
@@ -50,6 +127,7 @@ def main():
     parser.add_argument('--deps', type=Path)
     parser.add_argument('--raw', type=Path)
     parser.add_argument('--observations', type=Path)
+    parser.add_argument('--frame', type=Path, help='Saved .frame.json; require exact prefix hash, resize replay, rows and cursor.')
     parser.add_argument('--needle')
     parser.add_argument('--occurrence', type=int, default=1)
     parser.add_argument('--through-text', help='Extend the byte prefix through this exact captured line after the observation.')
@@ -64,6 +142,8 @@ def main():
         return 0
     if not all((args.raw, args.observations, args.needle, args.output)) or args.occurrence < 1:
         parser.error('Use --raw, --observations, --needle, --output and a positive occurrence.')
+    if args.frame and args.through_text:
+        parser.error('--frame uses the exact verified offset; it cannot be combined with --through-text.')
     observations = json.loads(args.observations.read_text(encoding='utf8'))['observations']
     matches = [item for item in observations if item['needle'] == args.needle]
     if len(matches) < args.occurrence:
@@ -73,7 +153,7 @@ def main():
         parser.error('Capture again with observed_offset; guessing a frame boundary is not evidence.')
     raw = args.raw.read_bytes()
     offset = observation['observed_offset']
-    if not 0 < offset <= len(raw):
+    if type(offset) is not int or not 0 < offset <= len(raw):
         parser.error('Recorded observation offset is outside the raw capture.')
     if args.through_text:
         # A title can be observed before its frame finishes traversing the pipe.
@@ -83,8 +163,8 @@ def main():
         if found < 0:
             parser.error('The requested completion line does not follow this observation.')
         offset = found+len(needle)
-    screen, stream = emulator()
-    stream.feed(raw[:offset].decode('utf8', errors='strict'))
+    frame_proof = json.loads(args.frame.read_text(encoding='utf8')) if args.frame else None
+    screen = verified_capture(raw, offset, frame_proof) if args.frame else replay_capture(raw[:offset])
     from PIL import Image, ImageDraw, ImageFont
     palette = {'default': '#dedede', 'black': '#1b1b1b', 'red': '#e08080',
                'green': '#9ebf8b', 'brown': '#d2b67e', 'blue': '#87a5cf',
@@ -126,6 +206,9 @@ def main():
     receipt = {'scope': 'ANSI emulation of captured output bytes; not a physical screenshot or usability study',
                'raw_sha256': sha(args.raw), 'observation_sha256': sha(args.observations), 'observation': observation,
                'rendered_through_offset': offset, 'completion_text': args.through_text,
+               'verified_frame_sha256': sha(args.frame) if args.frame else None,
+               'verified_frame_equal': True if args.frame else None,
+               'resize_boundaries': frame_proof.get('resizes', []) if args.frame else [],
                'tool_sha256': sha(Path(__file__)), 'png_sha256': sha(args.output),
                'dimensions': [screen.columns, screen.lines],
                'theme': args.theme,

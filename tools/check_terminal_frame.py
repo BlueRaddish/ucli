@@ -17,22 +17,9 @@ import sys
 def inspect(capture):
     # Embedded Python distributions may omit the script directory from sys.path.
     sys.path.insert(0, str(Path(__file__).resolve().parent))
-    from render_terminal import emulator
+    from render_terminal import replay_capture
     raw = capture['raw'].encode('utf8')
-    if len(raw) > 2 * 1024 * 1024:
-        raise ValueError('capture exceeds 2 MiB')
-    screen, stream = emulator()
-    previous = 0
-    for boundary in capture.get('resizes', []):
-        offset, width, height = (boundary[k] for k in ('offset', 'width', 'height'))
-        if any(type(v) is not int for v in (offset, width, height)):
-            raise ValueError('resize values must be integers')
-        if not previous <= offset <= len(raw) or not 1 <= width <= 500 or not 1 <= height <= 200:
-            raise ValueError('invalid resize boundary')
-        stream.feed(raw[previous:offset].decode('utf8'))
-        screen.resize(lines=height, columns=width)
-        previous = offset
-    stream.feed(raw[previous:].decode('utf8'))
+    screen = replay_capture(raw, capture.get('resizes', []))
     colors = sorted({screen.buffer[row][column].fg
                      for row in range(screen.lines) for column in range(screen.columns)
                      if screen.buffer[row][column].data.strip()
