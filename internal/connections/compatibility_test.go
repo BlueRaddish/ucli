@@ -92,7 +92,12 @@ func TestConnectionFormatOneReadAndFormatTwoAppend(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c := Connection{ID: "connection_" + strings.Repeat("a", 32), Label: "legacy", Provider: o.Provider, Executable: o.Executable, SHA256: sha, NativeHome: o.NativeHome, HomeMode: "existing", AuthState: "authenticated", AuthMode: "chatgpt", Identity: strings.Repeat("b", 64), Isolation: "unverified", ObservedAt: time.Now().UTC()}
+	// Match Connect's stored path, including macOS temporary-directory aliases.
+	nativeHome, err := physicalPath(o.NativeHome)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := Connection{ID: "connection_" + strings.Repeat("a", 32), Label: "legacy", Provider: o.Provider, Executable: o.Executable, SHA256: sha, NativeHome: nativeHome, HomeMode: "existing", AuthState: "authenticated", AuthMode: "chatgpt", Identity: strings.Repeat("b", 64), Isolation: "unverified", ObservedAt: time.Now().UTC()}
 	r := record{Format: 1, Revision: 1, Connection: c}
 	if !validRecord(r) {
 		t.Fatal("legacy fixture invalid")
