@@ -52,7 +52,7 @@ func validateRequest(ctx context.Context, req adapters.Request, emit func(string
 	}
 	b := req.Binding
 	r := req.Attempt.Effective
-	if b == nil || b.ID == "" || b.Runtime != "claude" || b.AuthMode != "claude.ai" || len(b.Identity) != 64 || b.SHA256 == "" || b.Version != Version {
+	if b == nil || b.ID == "" || b.Runtime != "claude" || b.AuthMode != "claude.ai" || len(b.Identity) != 64 || b.SHA256 == "" || (b.Version != Version && b.Version != "2.1.299") {
 		return fail("claude_binding", "Link and verify the native Claude subscription account before dispatch.", 3)
 	}
 	if r.Runtime != "claude" || r.Provider != "anthropic" || r.Account != b.ID || r.Mode != "native" || (r.Permission != "read-only" && r.Permission != "sandbox") {

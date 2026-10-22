@@ -21,7 +21,7 @@ import (
 	"ucli.local/ucli/internal/runtimes"
 )
 
-const Version = "2.1.299"
+const Version = "2.1.304"
 
 type Model struct {
 	ID, Name, DefaultEffort string
@@ -49,7 +49,7 @@ func Inspect(ctx context.Context, b adapters.NativeBinding) (Inspection, error) 
 	if err := validateInspection(ctx, b); err != nil {
 		return Inspection{}, err
 	}
-	digest, err := verifiedExecutable(ctx, b)
+	digest, version, err := verifiedExecutable(ctx, b)
 	if err != nil {
 		return Inspection{}, err
 	}
@@ -65,6 +65,9 @@ func Inspect(ctx context.Context, b adapters.NativeBinding) (Inspection, error) 
 		return Inspection{}, err
 	}
 	inspection, err := inspectStatus(raw, b.Home, digest)
+	if err == nil {
+		inspection.Version = version
+	}
 	if err != nil || inspection.AuthMode == "none" {
 		return inspection, err
 	}
@@ -92,27 +95,16 @@ func validateInspection(ctx context.Context, b adapters.NativeBinding) error {
 	return nil
 }
 
-func verifiedExecutable(ctx context.Context, b adapters.NativeBinding) (string, error) {
-	if b.Version != "" && b.Version != Version {
-		return "", fail("claude_version", "This Claude version has not been verified for the native adapter.", 3)
-	}
-	var expected string
-	for _, entry := range runtimes.Catalog() {
-		if entry.ID == "claude" && entry.Version == Version && entry.OS == runtime.GOOS && entry.Arch == runtime.GOARCH {
-			expected = entry.SHA256
-		}
-	}
-	if expected == "" {
-		return "", fail("claude_platform", "No verified Claude executable is available for this platform.", 3)
-	}
+func verifiedExecutable(ctx context.Context, b adapters.NativeBinding) (string, string, error) {
 	digest, err := executableDigest(ctx, b)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
-	if digest != expected {
-		return "", fail("claude_version", "Linked Claude executable does not match its reviewed identity.", 5)
+	version, ok := runtimes.ReviewedNativeVersion("claude", b.Version, digest, runtime.GOOS, runtime.GOARCH)
+	if !ok {
+		return "", "", fail("claude_version", "Linked Claude executable does not match a reviewed version and file identity.", 5)
 	}
-	return digest, nil
+	return digest, version, nil
 }
 
 func executableDigest(ctx context.Context, b adapters.NativeBinding) (string, error) {

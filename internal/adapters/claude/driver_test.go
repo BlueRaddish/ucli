@@ -123,6 +123,20 @@ func fixtureHost() int {
 	if f.Mode == "unexpected-tool" {
 		tools = []string{"Bash"}
 	}
+
+	if strings.HasPrefix(f.Mode, "ui-") {
+		metadata := map[string]any{"type": "system", "subtype": "ui_invalidate", "session_id": session, "uuid": "11111111-1111-4111-8111-111111111111", "event": "ui.render", "prompts_screened": true, "instances": []any{map[string]any{"surface": "SECRET", "component": "SECRET", "instance_id": "SECRET"}}}
+		if f.Mode == "ui-foreign" {
+			metadata["session_id"] = "00000000-0000-4000-8000-000000000000"
+		}
+		if f.Mode == "ui-malformed" {
+			metadata["event"] = "unknown"
+		}
+		send(metadata)
+		if f.Mode == "ui-eof" {
+			return 0
+		}
+	}
 	send(map[string]any{"type": "system", "subtype": "init", "session_id": session, "permissionMode": args["--permission-mode"], "tools": tools, "mcp_servers": []string{}, "model": "claude-sonnet-fixture"})
 	if strings.HasPrefix(f.Mode, "error:") {
 		class := strings.TrimPrefix(f.Mode, "error:")
@@ -175,7 +189,7 @@ func TestOwnedNativeProtocol(t *testing.T) {
 	t.Setenv("ANTHROPIC_API_KEY", "must-not-cross")
 	t.Setenv("ANTHROPIC_AUTH_TOKEN", "must-not-cross")
 	t.Setenv("CLAUDE_CODE_USE_BEDROCK", "1")
-	for _, mode := range []string{"complete", "sandbox", "failed", "malformed", "wrong-session", "unexpected-tool", "no-result", "exit-disagreement"} {
+	for _, mode := range []string{"complete", "sandbox", "failed", "malformed", "wrong-session", "unexpected-tool", "no-result", "exit-disagreement", "ui-valid", "ui-foreign", "ui-malformed", "ui-eof"} {
 		t.Run(mode, func(t *testing.T) {
 			permission := "read-only"
 			if mode == "sandbox" {
@@ -186,7 +200,7 @@ func TestOwnedNativeProtocol(t *testing.T) {
 			defer cancel()
 			var output strings.Builder
 			out, err := fixtureExecute(ctx, req, func(s string) error { output.WriteString(s); return nil })
-			if mode == "complete" || mode == "sandbox" {
+			if mode == "complete" || mode == "sandbox" || mode == "ui-valid" {
 				if err != nil || out.State != "complete" || output.String() != "fixture reply" || out.NativeModel != "claude-sonnet-fixture" {
 					t.Fatalf("state=%s output=%q error=%v", out.State, output.String(), err)
 				}

@@ -153,7 +153,7 @@ func executeProtocol(ctx context.Context, req adapters.Request, child *process.C
 		if configErr != nil {
 			return out, configErr
 		}
-		if !safeNativeConfig(config, route.Permission, req.Binding.HomeMode) {
+		if !safeBoundNativeConfig(config, route.Permission, *req.Binding) {
 			return out, admissionError("Codex effective tool/auth configuration is outside the selected permission envelope.")
 		}
 		inspection, checkErr := inspectRPC(ctx, r, *req.Binding)

@@ -17,10 +17,11 @@ import (
 	"ucli.local/ucli/internal/adapters"
 	"ucli.local/ucli/internal/core"
 	"ucli.local/ucli/internal/process"
+	"ucli.local/ucli/internal/runtimes"
 )
 
-const reviewedSHA256 = "dd13bdb162a184fa04039488b234a8258ef9b76f84e926c505d5742b19249a6a"
-const reviewedVersion = "codex-cli 0.162.1"
+const reviewedSHA256 = "2692c8c7bb2cf8b0aefe638741fc90236f4b824c59578ce84994f9de58200993"
+const reviewedVersion = "codex-cli 0.163.0"
 
 type Model struct {
 	ID            string   `json:"id"`
@@ -48,7 +49,8 @@ func admissionError(message string) error {
 }
 
 func validateBinding(b adapters.NativeBinding, executing bool) error {
-	if b.Runtime != "codex" || b.SHA256 != reviewedSHA256 || (b.Version != "" && b.Version != reviewedVersion && b.Version != "0.162.1") || runtime.GOOS != "windows" || runtime.GOARCH != "amd64" {
+	_, reviewed := runtimes.ReviewedNativeVersion("codex", strings.TrimPrefix(b.Version, "codex-cli "), b.SHA256, runtime.GOOS, runtime.GOARCH)
+	if b.Runtime != "codex" || !reviewed {
 		return admissionError("This Codex build/platform has not been reviewed for native execution.")
 	}
 	if (b.HomeMode != "existing" && b.HomeMode != "separate") || !filepath.IsAbs(b.Executable) || !filepath.IsAbs(b.Home) || strings.ContainsAny(b.Executable+b.Home, "\x00\r\n") || (b.AuthMode != "" && b.AuthMode != "chatgpt") || (executing && (b.AuthMode != "chatgpt" || !validID(b.ID) || len(b.Identity) != 64)) {
@@ -120,6 +122,23 @@ func nativeArgs(scratch, permission, homeMode string) []string {
 	return args
 }
 
+// 0.163.0 adds optional background model compaction. Keep it explicitly off in
+// this foreground-owned envelope without sending an unknown feature to 0.162.1.
+func boundNativeArgs(scratch, permission string, b adapters.NativeBinding) []string {
+	args := nativeArgs(scratch, permission, b.HomeMode)
+	if b.SHA256 == reviewedSHA256 {
+		args = append(args, "-c", "features.async_compaction=false")
+	}
+	return args
+}
+
+func safeBoundNativeConfig(config map[string]json.RawMessage, permission string, b adapters.NativeBinding) bool {
+	if !safeNativeConfig(config, permission, b.HomeMode) {
+		return false
+	}
+	return b.SHA256 != reviewedSHA256 || string(objectFields(config["features"])["async_compaction"]) == "false"
+}
+
 func nativeEnv(home, scratch string) []string {
 	// Never inherit API keys, provider endpoints, native-session flags or agent
 	// orchestration variables. This path admits ChatGPT managed authentication only.
@@ -148,7 +167,7 @@ func startBound(ctx context.Context, b adapters.NativeBinding, permission string
 		}
 		return nil
 	}
-	child, err := process.Start(ctx, process.Spec{Executable: b.Executable, Args: append(nativeArgs(directory, permission, b.HomeMode), extra...), Env: nativeEnv(b.Home, directory), Dir: directory, FrameBytes: maxFrame, QueueBytes: 4 * maxFrame})
+	child, err := process.Start(ctx, process.Spec{Executable: b.Executable, Args: append(boundNativeArgs(directory, permission, b), extra...), Env: nativeEnv(b.Home, directory), Dir: directory, FrameBytes: maxFrame, QueueBytes: 4 * maxFrame})
 	if err != nil {
 		return nil, nil, errors.Join(admissionError("The connected Codex process could not be started."), cleanup())
 	}

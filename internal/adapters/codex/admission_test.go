@@ -62,7 +62,7 @@ func TestCodexNativeProbe(t *testing.T) {
 		if err == nil {
 			var config map[string]json.RawMessage
 			config, err = readNativeConfig(ctx, r, workspaceCheck)
-			if err == nil && !safeNativeConfig(config, "read-only", b.HomeMode) {
+			if err == nil && !safeBoundNativeConfig(config, "read-only", b) {
 				err = admissionError("Native launch configuration did not preserve the selected envelope.")
 			}
 		}

@@ -81,6 +81,12 @@ func (s *stream) consume(raw []byte, emit func(string) error) error {
 	}
 	switch kind {
 	case "system":
+		if text(f, "subtype") == "ui_invalidate" {
+			if !catalogUIInvalidation(f, s.session) {
+				return fail("claude_protocol", "Native Claude UI metadata did not match the active session.", 9)
+			}
+			return nil // UI repaint metadata is never output, authority or completion.
+		}
 		if strings.HasPrefix(text(f, "subtype"), "hook_") {
 			return fail("claude_permission", "Native Claude reported a hook outside the requested configuration envelope.", 5)
 		}
