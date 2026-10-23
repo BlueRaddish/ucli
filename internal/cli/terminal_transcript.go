@@ -19,11 +19,12 @@ const (
 )
 
 type transcriptRecord struct {
-	ID    uint64
-	Role  transcriptRole
-	Label string
-	Text  string
-	Base  int // bytes omitted from the beginning of this record
+	ID                uint64
+	Role              transcriptRole
+	Label             string
+	Text              string
+	Base              int    // bytes omitted from the beginning of this record
+	TaskID, AttemptID string // display ownership, never a native session identity
 }
 
 type transcriptAnchor struct {
@@ -70,14 +71,14 @@ func omittedTranscriptRow() transcriptRow {
 	return transcriptRow{terminalLine: terminalLine{Text: "Earlier display omitted · /result opens saved output.", Dim: true}}
 }
 
-// Foreground FIFO/beginReply ordering owns the active reply today. Concurrent
-// background producers must add scoped task/attempt generations before sharing
-// this seam; record IDs below are display anchors, not execution identities.
+// Unscoped foreground/results retain FIFO/beginReply ordering. Scoped assistant
+// deltas belong to one exact task/attempt pair; record IDs remain display anchors.
 type terminalMessageMsg struct {
-	Role  transcriptRole
-	Label string
-	Text  string
-	Start bool // allocate a new message, including an initially empty reply
+	Role              transcriptRole
+	Label             string
+	Text              string
+	Start             bool // allocate a new unscoped message, including an initially empty reply
+	TaskID, AttemptID string
 }
 
 func (s *terminalShell) append(text string) {
@@ -85,23 +86,32 @@ func (s *terminalShell) append(text string) {
 }
 
 func (s *terminalShell) message(message terminalMessageMsg) {
+	scoped := message.TaskID != "" || message.AttemptID != ""
+	if scoped && (!validTranscriptScopeID(message.TaskID) || !validTranscriptScopeID(message.AttemptID)) {
+		return // an invalid partial scope must never fall back to the active reply
+	}
 	if message.Role == transcriptPrompt && message.Start {
 		// An explicit submission/result inspection is navigation intent. Only
 		// subsequent streaming output must preserve a manually paused reader.
 		s.paused, s.anchor = false, transcriptAnchor{}
 	}
-	if message.Role == transcriptAssistant && message.Start && message.Text == "" {
+	if !scoped && message.Role == transcriptAssistant && message.Start && message.Text == "" {
 		s.replyID, s.replyLabel = 0, clipCells(inlineText(message.Label), 160)
 		return
 	}
-	if message.Role == transcriptAssistant && message.Label == "" {
+	if !scoped && message.Role == transcriptAssistant && message.Label == "" {
 		message.Label = s.replyLabel
 	}
 	text := safe(message.Text)
 	index := -1
-	if message.Role == transcriptAssistant && !message.Start {
+	if message.Role == transcriptAssistant && (scoped || !message.Start) {
 		for i := range s.transcript {
-			if s.transcript[i].ID == s.replyID {
+			record := &s.transcript[i]
+			match := !scoped && record.ID == s.replyID && record.TaskID == "" && record.AttemptID == ""
+			if scoped {
+				match = record.Role == transcriptAssistant && record.TaskID == message.TaskID && record.AttemptID == message.AttemptID
+			}
+			if match {
 				index = i
 				break
 			}
@@ -109,9 +119,11 @@ func (s *terminalShell) message(message terminalMessageMsg) {
 	}
 	if index < 0 {
 		s.nextID++
-		s.transcript = append(s.transcript, transcriptRecord{ID: s.nextID, Role: message.Role, Label: clipCells(inlineText(message.Label), 160)})
+		// A scan of the bounded display cache avoids retaining identities after
+		// eviction. Late output for an evicted attempt starts a new visible tail.
+		s.transcript = append(s.transcript, transcriptRecord{ID: s.nextID, Role: message.Role, Label: clipCells(inlineText(message.Label), 160), TaskID: strings.Clone(message.TaskID), AttemptID: strings.Clone(message.AttemptID)})
 		index = len(s.transcript) - 1
-		if message.Role == transcriptAssistant {
+		if !scoped && message.Role == transcriptAssistant {
 			s.replyID = s.nextID
 		}
 	}
