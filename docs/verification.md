@@ -186,6 +186,22 @@ All these recipes use synthetic homes/demo or pure fixtures. No provider login,
 real inference, downloads or microphone are needed. Definitions, skipped opt-ins
 and earlier-version receipts are not a pass for the new behavior.
 
+## Session event catch-up - October 22
+
+The read-only Sessions worker drains saved 100-event pages without an idle delay
+while more remain. Explicit refresh continues the same task/attempt cursor; task,
+view and attempt changes reset it. Idle reads and failures retain normal polling.
+Keep output bounded, sequence/identity checks, cancellation between pages and
+rejection of results from superseded requests.
+
+Run `go test -p=1 -count=1 ./internal/cli -run '^TestSessionMonitor'` for actual
+App/Store catch-up plus cursor, failure and interruption checks. After building,
+reuse the ConPTY environment above and run
+`go test -p=1 -count=1 ./internal/cli -run '^TestPackagedConPTYSessionMonitorBurstAndRefresh$'`.
+It drives saved synthetic progress, manual refresh and return to an unchanged
+draft through the packaged console. Its raw-output timing excludes physical
+paint latency and is not native inference or cross-machine messaging evidence.
+
 ## Build and ordinary checks
 
 Use Go 1.27.2 and Python 3.13. The Python tooling uses the standard library.

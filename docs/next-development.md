@@ -141,6 +141,9 @@ Explicit cancellation still requires native terminal proof; unknown outcomes
 remain fenced. Do not add a second task store, infer resume from saved prose or
 start every installed CLI at application startup.
 
+See [agent communication](agent-communication.md) for the narrow monitor catch-up
+adoption and the separate, future local-broker and delivery boundaries.
+
 ## Durable capacity and workflow execution: P08/P17/P21/P22
 
 Explicit schema1-to-schema2 migration now exists, holding a writer barrier through
