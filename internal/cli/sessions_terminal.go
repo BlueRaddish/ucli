@@ -67,7 +67,12 @@ func newSessionMonitorWorker(ctx context.Context, source sessionMonitorSource, i
 			case <-ctx.Done():
 				return
 			case next := <-w.requests:
-				request, snapshot = next, sessionMonitorSnapshot{}
+				// Explicit refresh continues this detail cursor; changing the view or
+				// task starts fresh. readSessionMonitor also resets on attempt change.
+				if next.taskID == "" || next.taskID != request.taskID {
+					snapshot = sessionMonitorSnapshot{}
+				}
+				request = next
 			case <-timer.C:
 				if request.ctx == nil || request.ctx.Err() != nil {
 					continue
@@ -94,7 +99,13 @@ func newSessionMonitorWorker(ctx context.Context, source sessionMonitorSource, i
 			case w.wake <- struct{}{}:
 			default:
 			}
-			timer.Reset(interval)
+			delay := interval
+			if err == nil && snapshot.more {
+				// Drain one bounded page per select iteration, so cancellation and
+				// superseding requests remain eligible between available pages.
+				delay = 0
+			}
+			timer.Reset(delay)
 		}
 	}()
 	return w
