@@ -186,6 +186,34 @@ All these recipes use synthetic homes/demo or pure fixtures. No provider login,
 real inference, downloads or microphone are needed. Definitions, skipped opt-ins
 and earlier-version receipts are not a pass for the new behavior.
 
+## Owned execution and independent observation - October 22
+
+Use [the ownership contract](owned-execution.md). The application checks use real
+SQLite state and controlled drivers; UI controller checks use explicitly controlled
+handles. Neither represents live provider inference or a persistent native session.
+The old-source observer-disconnect negative control must stop accepted work before
+the correction; the corrected path must persist its actual terminal outcome.
+
+```console
+go test -p=1 -count=1 ./internal/app -run 'TestExecution|TestForegroundCancellation'
+go test -p=1 -count=1 ./internal/cli -run 'TestOwnedSession|TestForegroundObserverFailure|TestScoped'
+```
+
+Prove canceled waits, broken/stalled observers, exact-cursor reattachment, bounded
+callbacks/admission, replay at worker capacity, foreign/gapped/versioned event
+rejection, explicit Stop, deadline retention, unknown fences and shutdown ordering.
+Closing SQLite under a live worker or counting a stop request as terminal proof is
+a failure. A newer draft or task must survive a previous worker's completion.
+
+Run the existing packaged App, voice and complete Windows ConPTY routes after
+building the frozen source. The packaged Enter/menu/draft/restart checks now
+consume the asynchronous demo path. Their fast local demo establishes that path;
+it does not prove an observed long-running native child or parent-exit survival.
+Inspect the fixed composer and task-labelled output at normal and narrow sizes.
+Explicit Ctrl+C must remain available after output-reader failure, and the second
+press retains the existing confirmation behavior. Preserve all failed/negative
+receipts alongside corrected runs.
+
 ## Session event catch-up - October 22
 
 The read-only Sessions worker drains saved 100-event pages without an idle delay

@@ -2,6 +2,12 @@
 
 Status: planning baseline, 2026-10-17. This describes a new project, independent of cly/CLAI. No component below is implemented or verified merely because it appears here. Architecture decisions should preserve the user's primary outcome: start useful AI work quickly without remembering provider-specific syntax.
 
+The current [application-owned execution host](owned-execution.md) implements the
+worker/observer boundary inside one UCLI process. It reuses existing acceptance,
+state and adapters; the separate process supervisor, native conversation reuse,
+workflow execution and quota reservations below remain proposals. The
+[terminal UI research](terminal-ui-research.md) records current interface references.
+
 ## 1. Assessment and governing decisions
 
 The proposal is viable if UCLI standardizes user intent while retaining truthful capability boundaries. The largest risks are incomplete provider integration, account isolation, interruption recovery, and hidden startup work. Language choice helps distribution and local overhead, but cannot compensate for a provider probe or decision-model call before every prompt.

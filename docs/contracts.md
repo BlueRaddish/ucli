@@ -258,7 +258,16 @@ the terminal result and acceptance checks. A crash between these steps produces 
 specific reconciliation case. No exactly-once claim spans arbitrary external tools.
 An unknown external outcome requires inspection/status lookup before replay.
 
-The experimental foreground implementation stores a validated `FailureClass`
+The experimental [in-process execution host](owned-execution.md) now separates
+durable worker ownership from UI observation. Acceptance and native admission
+remain on the shared application path; `Follow`/`Wait` cancellation only detaches
+a reader. Explicit `Cancel` targets a captured local handle. `App.Close` stops
+admission, requests stop and joins workers before closing SQLite; an unresponsive
+worker leaves state open until it returns. This implements observation separation,
+not terminal-close survival or persistent native conversation resumption. Existing
+state formats, workspace leases and unknown-outcome guards are unchanged.
+
+The experimental implementation stores a validated `FailureClass`
 atomically with a confirmed failed attempt: safe code, origin, exit category,
 acceptance and side-effect state. Its sanitized message remains in the receipt.
 Live return and command replay consume the same record. Historical failures

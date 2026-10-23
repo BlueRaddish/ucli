@@ -14,12 +14,14 @@ commits the attempt and initial event together. [Events](../internal/state/event
 have per-attempt sequences and bounded reads after a caller's cursor. A replay
 does not create another inference request. Unknown outcomes retain their fences.
 
-[Execution](../internal/app/execution.go) persists output before delivering it,
-but still runs under the foreground caller's context. Its output callback can
-fail execution; it is not a detached subscription. The process layer bounds raw
+[Execution](../internal/app/execution.go) persists output under an
+[application-owned host](owned-execution.md). `Start` returns after acceptance;
+independent observers follow durable sequences. Observer cancellation, errors or
+stalls cannot fail the adapter's output callback. Explicit cancellation and host
+shutdown target owned workers separately. The process layer still bounds raw
 output queues and stops its owned child on overflow. Native Claude and Codex
 submissions currently create fresh ephemeral contexts: saved UCLI history is
-not provider conversation memory. There is no implemented local broker,
+not provider conversation memory. There is no implemented cross-process broker,
 cross-machine agent bus or automatic native-session resume.
 
 ## Narrow adoption: monitor catch-up
@@ -52,7 +54,8 @@ or background-work request, without launching every native CLI at startup.
 Keep implementation in Go and reuse existing state; no mandatory Rust or Reason
 Network dependency follows from this reference.
 
-The broker would own a turn independently of UI attachment. Subscribers reconnect
+The in-process host now owns turns independently of UI attachment. A later broker
+would extend that lifetime beyond the terminal process. Subscribers reconnect
 with attempt ID and last displayed sequence, reading durable output before waiting
 for a notification. Bound frame bytes, outstanding requests, subscriber buffers
 and catch-up work; a slow UI detaches or resynchronizes rather than cancelling the

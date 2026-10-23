@@ -83,13 +83,19 @@ an authenticated account, execution compatibility and remaining capacity are
 separate observations. Native updates must not silently replace account identity,
 clear a draft, change an exact pin or imply a logout.
 
-UCLI currently owns foreground native submissions. Saved UCLI task history does
+UCLI owns accepted submissions independently of rich-terminal observation within
+the same process. Editing, switching tasks and inspecting sessions stay available
+while workers run. Enter on a busy task saves the next composition without
+queueing, steering or resubmission. `/stop` requests cancellation only for the
+current task's owned handle; its terminal result still comes from the runtime.
+Closing UCLI requests stop for its owned workers. Saved UCLI task history does
 not provide native conversation memory: Codex and Claude submissions start fresh
-contexts containing the new input. Saved session inspection is not worker control.
+contexts containing the new input. The read-only sessions inspector itself does
+not control workers. See [owned execution](owned-execution.md).
 Workflow inspection is not workflow execution. Do not label these capabilities
 as persistent background conversations until implemented and independently tested.
 
-The later supervisor must own native conversation handles scoped to provider,
+The later process supervisor must own native conversation handles scoped to provider,
 account, workspace and permissions; the UI subscribes to durable sequenced events.
 Launch workers lazily, allow one active turn per native context, and reuse native
 resume only where verified. UI detachment or a slow reader must not imply a stop.

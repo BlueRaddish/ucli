@@ -87,6 +87,8 @@ When slash completion is not open, pressing `Tab` opens the action discovery men
 
 In the rich editor, `Enter` sends one nonempty composition without repeated auto-sends, while `Alt+Enter`, `Shift+Enter`, or `Ctrl+J` inserts a newline and `/send` remains supported. UCLI persists the full pending composition before routing or acceptance, leaving recoverable text if a missing account, unsupported version, or conflict stops submission; compare-and-swap conflicts save a separate recovery draft. Restored drafts load into the editor for editing, and later rich saves replace the draft instead of appending duplicates. Changing tasks or settings preserves pending text, and bracketed paste or voice input stays literal until `Enter`. Input is bounded to 1 MiB with Unicode grapheme editing and `EOF` text preservation without submitting, without per-keystroke disk autosave or crash recovery for undelivered keystrokes.
 
+`App.Start` completes admission and durable acceptance synchronously, then returns a handle to a host-owned in-process worker. While work runs, the rich UI can edit, browse menus, and inspect other saved work. Durable events observed through `Follow` are scoped by task and attempt identities so concurrent responses do not merge. Submitting again on a busy task saves the composition without queuing, steering, or running it. `/stop` targets only the selected task's current handle owned by this process, never an arbitrary recorded running row. Normal close and confirmed `Ctrl+C` request stop and join owned work, though a stop request does not prove remote cancellation. There is no detached broker, survival across terminal closure, or persistent native conversation. See the [terminal UI research](../../docs/terminal-ui-research.md) for source comparisons and follow-up design work.
+
 During idle editing or active rich operations, the first `Ctrl+C` shows a two-second confirmation notice without canceling work or erasing text. A second `Ctrl+C` within that window confirms interruption or exit while keeping processed unsent text; typing or pressing `Esc` disarms the notice, and timeout restores the latest notice. Noninteractive `SIGINT` still cancels immediately. Interruption does not prove remote cancellation. Uncertain native outcomes retain their guard, with no automatic retry or resume.
 
 The `/models` view leads with friendly names rather than raw model IDs and keeps model, account, effort, and permission pins independent. Setup, info, cancel, and refresh actions never silently alter any pin. In interactive `/login`, the default Use account already signed in on this computer option only checks and reuses local state, while a separate Sign in action starts a supported native browser or device flow. Binary installation, cached sign-in, version compatibility, and execution support are tracked separately—authentication or catalog data never proves entitlement or execution—with plain-English next steps, AGY models shown as unavailable, and GitHub as identity-only.
@@ -176,16 +178,7 @@ failure: live warning events and replayed warnings go to human stderr, while
 `tasks show` and `/result` include saved attempt warnings alongside the result.
 JSON carries warning events and `attempt.warnings`; terminal controls are escaped.
 
-Events enter a queue of at most 32 writes. Queue/flush wait is bounded at 500 ms;
-a stalled writer cancels the service and returns exit 9. A completed task remains
-durable even if its reader stops consuming its result. Arbitrary caller-owned
-`io.Writer` and `io.Reader` cannot be forcibly interrupted, so cancellation can
-leave at most one blocked output worker and one input worker per invocation until
-the caller closes/releases them. Tests release their blocked writers/readers.
-The process entry point exits normally; no provider survives under CLI ownership.
-Finishing uses an acknowledged terminal flush barrier without closing the producer
-queue. A callback that outlives the app's delivery deadline receives a closed-output
-error safely; it cannot panic by sending into a closed channel.
+The renderer queue is bounded at 32 writes with 500 ms queue and flush waits. Stalled output returns a display failure that detaches observation without canceling accepted work. The foreground owner drains and waits for its worker, while explicit interruption can still request a stop. Durable `Follow` delivers contiguous saved events with cursor validation, and an observer failure does not determine the execution outcome. Arbitrary caller-owned `io.Writer` and `io.Reader` values cannot be forcibly interrupted, leaving at most one blocked renderer writer and one input reader per invocation until the caller releases them. `App` separately caps observer callback workers at 16, including stalled callbacks. The flush barrier acknowledges queued writes without closing the producer queue, so late callbacks fail safely rather than panic. Process shutdown requests stop and joins owned work before closing the store; if cleanup remains unconfirmed, UCLI reports that state without claiming remote cancellation or detached persistence.
 
 ## Verification
 

@@ -11,7 +11,7 @@ enable paid overages.
 
 ## What works now
 
-The Go CLI has one shared foreground application service, durable SQLite intent,
+The Go CLI has one shared application-owned execution host, durable SQLite intent,
 task revisions/drafts/history, replay protection, workspace fences, bounded owned
 process streams, independent model/account/effort/permission choices, a deterministic
 snapshot resolver, explicit demo and native Muse echo, and offline workflow graphs.
@@ -132,7 +132,11 @@ metadata from a new file does not admit its execution. Extended connection recor
 use format 2 on explicit writes, with format-1 reads retained. Older clients refuse
 these extended records; this does not migrate the task SQLite schema.
 
-The next session-ownership slice must separate workers from the foreground UI.
+The [owned execution host](owned-execution.md) separates workers from rich-terminal
+observers within one UCLI process. Admission/acceptance, bounded event following,
+explicit cancellation and shutdown share existing durable state. The UI stays
+available for composition and inspectors; busy prompts remain unsent drafts.
+The next lifetime boundary is a separately verified process supervisor and IPC.
 Keep one active turn per provider/account/workspace/permission-bound native context,
 persist sequenced output before delivery, and support UI reattachment without
 replaying work. Launch lazily and close idle processes only where verified native
