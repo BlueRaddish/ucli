@@ -106,16 +106,18 @@ func TestCanceledAndBrokenDeliveryRetainAttempt(t *testing.T) {
 		}
 		return nil
 	})
-	if err == nil || result.State != "interrupted" || count < 1 {
+	// A fast demo can durably complete before the observer requests cancel.
+	// The coordinator must retain that truth rather than overwrite completion.
+	if err == nil || (result.State != "interrupted" && result.State != "complete") || count < 1 {
 		t.Fatal("cancellation not durable", result, err)
 	}
 	_, history, loadErr := a.Task(context.Background(), result.TaskID)
-	if loadErr != nil || history[0].State != "interrupted" {
+	if loadErr != nil || history[0].State != result.State {
 		t.Fatal(history, loadErr)
 	}
 	result, err = a.Run(context.Background(), Options{Input: "broken output", CWD: cwd, Demo: true}, func(core.Event) error { return errors.New("output closed") })
-	if err == nil || result.State != "interrupted" {
-		t.Fatal("broken initial delivery dispatched", result, err)
+	if err == nil || result.State != "complete" {
+		t.Fatal("broken observation changed execution outcome", result, err)
 	}
 }
 func TestDraftAndNoInputRecoveryDoNotDispatch(t *testing.T) {
@@ -166,11 +168,11 @@ func TestStalledPresentationCannotBlockDurableLifecycle(t *testing.T) {
 	if err == nil || time.Since(start) > 2*time.Second {
 		t.Fatal("callback blocked lifecycle", attempt, err)
 	}
-	if attempt.State != "interrupted" {
+	if attempt.State != "complete" {
 		t.Fatal("accepted work did not settle safely", attempt)
 	}
 	_, history, loadErr := a.Task(context.Background(), attempt.TaskID)
-	if loadErr != nil || len(history) != 1 || history[0].State != "interrupted" {
+	if loadErr != nil || len(history) != 1 || history[0].State != "complete" {
 		t.Fatal("state not inspectable", history, loadErr)
 	}
 }

@@ -1,4 +1,4 @@
-// Package app owns the shared foreground application path used by every UI.
+// Package app owns execution, durable task state and independent UI observation.
 package app
 
 import (
@@ -29,10 +29,10 @@ type Options struct {
 	Demo                          bool
 }
 type App struct {
-	Store        *state.Store
-	Home         string
-	owner        core.Owner
-	deliveryGate chan struct{}
+	Store *state.Store
+	Home  string
+	owner core.Owner
+	host  *executionHost
 }
 
 func DefaultHome() (string, error) {
@@ -76,11 +76,9 @@ func Open(home string) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-	a := &App{Store: store, Home: home, owner: core.Owner{ID: core.NewID("owner"), PID: os.Getpid(), StartedAt: time.Now().UTC()}, deliveryGate: make(chan struct{}, 1)}
-	a.deliveryGate <- struct{}{}
+	a := &App{Store: store, Home: home, owner: core.Owner{ID: core.NewID("owner"), PID: os.Getpid(), StartedAt: time.Now().UTC()}, host: newExecutionHost()}
 	return a, nil
 }
-func (a *App) Close() error                                   { return a.Store.Close() }
 func (a *App) Tasks(ctx context.Context) ([]core.Task, error) { return a.Store.ListTasks(ctx, 100, 0) }
 func (a *App) TaskSummaries(ctx context.Context, query, cursor string, limit int) (state.TaskSummaryPage, error) {
 	return a.Store.ListTaskSummaries(ctx, query, cursor, limit)
@@ -239,17 +237,17 @@ func title(input string) string {
 	return string(r)
 }
 
-func (a *App) Run(ctx context.Context, opt Options, emit func(core.Event) error) (core.Attempt, error) {
+func (a *App) prepareRun(ctx context.Context, opt Options, reserve func() error) (preparedRun, error) {
 	if err := core.ValidateInput(opt.Input); err != nil {
-		return core.Attempt{}, err
+		return preparedRun{}, err
 	}
 	w, task, err := a.resolveWorkspace(ctx, opt.TaskID, opt.CWD)
 	if err != nil {
-		return core.Attempt{}, err
+		return preparedRun{}, err
 	}
 	requested := inherit(task.Selection, opt.Selection)
 	if err := core.ValidateSelection(requested); err != nil {
-		return core.Attempt{}, err
+		return preparedRun{}, err
 	}
 	revision := task.Revision
 	if opt.ExpectedRevision != nil {
@@ -271,21 +269,18 @@ func (a *App) Run(ctx context.Context, opt Options, emit func(core.Event) error)
 				cmd.ExpectedRevision = previous.Revision - 1
 			}
 			if cmd.IntentHash() != hash {
-				return core.Attempt{}, core.Problem("command_conflict", "This command ID already belongs to different input/settings. Use a new command ID for new work.", 5)
+				return preparedRun{}, core.Problem("command_conflict", "This command ID already belongs to different input/settings. Use a new command ID for new work.", 5)
 			}
-			if emit != nil {
-				for _, event := range []core.Event{{Version: 1, TaskID: previous.TaskID, AttemptID: previous.ID, Type: "command_replayed", At: time.Now().UTC(), State: previous.State}} {
-					if err := a.deliver(ctx, emit, event); err != nil {
-						return previous, err
-					}
-				}
-			}
-			return previous, resultError(previous)
+			return preparedRun{attempt: previous, replay: true}, nil
 		}
 		var problem *core.Error
 		if !errors.As(lookupErr, &problem) || problem.Code != "not_found" {
-			return core.Attempt{}, lookupErr
+			return preparedRun{}, lookupErr
 		}
+	}
+	// Replay is resolved before reserving a fresh worker or probing providers.
+	if err := reserve(); err != nil {
+		return preparedRun{}, err
 	}
 	var route core.Route
 	var executable string
@@ -298,7 +293,7 @@ func (a *App) Run(ctx context.Context, opt Options, emit func(core.Event) error)
 	if err != nil {
 		draft, saveErr := a.DraftAt(ctx, opt.TaskID, opt.Input, opt.CWD, requested, opt.ExpectedRevision)
 		if saveErr != nil {
-			return core.Attempt{}, saveErr
+			return preparedRun{}, saveErr
 		}
 		var problem *core.Error
 		if errors.As(err, &problem) {
@@ -307,9 +302,9 @@ func (a *App) Run(ctx context.Context, opt Options, emit func(core.Event) error)
 			copy.Acceptance = "not-dispatched"
 			copy.SideEffects = "none"
 			copy.Message += " Your input is saved as task " + draft.ID + "."
-			return core.Attempt{TaskID: draft.ID}, &copy
+			return preparedRun{attempt: core.Attempt{TaskID: draft.ID}}, &copy
 		}
-		return core.Attempt{TaskID: draft.ID}, err
+		return preparedRun{attempt: core.Attempt{TaskID: draft.ID}}, err
 	}
 	cmd.Effective = route
 	attempt, fresh, err := a.Store.Accept(ctx, cmd)
@@ -319,10 +314,10 @@ func (a *App) Run(ctx context.Context, opt Options, emit func(core.Event) error)
 		recovery.Draft = opt.Input
 		recovery.Workspace = w
 		recovery.Selection = requested
-		return attempt, a.preserveConflict(ctx, recovery, err)
+		return preparedRun{attempt: attempt}, a.preserveConflict(ctx, recovery, err)
 	}
 	if !fresh {
-		return attempt, resultError(attempt)
+		return preparedRun{attempt: attempt, replay: true}, nil
 	}
 	driver := adapters.Driver(demoDriver{})
 	if route.Mode == "echo" {
@@ -336,42 +331,9 @@ func (a *App) Run(ctx context.Context, opt Options, emit func(core.Event) error)
 			driver = claude.Driver{}
 		}
 	}
-	return a.runAccepted(ctx, attempt, executable, driver, emit, binding)
+	return preparedRun{attempt: attempt, executable: executable, driver: driver, binding: binding}, nil
 }
 
-// An arbitrary callback cannot be forcibly interrupted by Go. Bound the service's
-// wait and allow at most one outstanding callback per App; a stalled callback must
-// return before this instance can deliver more events. CLI presentation adds its
-// own cancellable bounded queue. Persisted state never waits forever on rendering.
-func (a *App) deliver(ctx context.Context, emit func(core.Event) error, event core.Event) error {
-	ctx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
-	defer cancel()
-	select {
-	case <-a.deliveryGate:
-	case <-ctx.Done():
-		return core.Problem("output_stalled", "Output delivery stalled. Saved task state remains available.", 9)
-	}
-	done := make(chan error, 1)
-	go func() { defer func() { a.deliveryGate <- struct{}{} }(); done <- emit(event) }()
-	select {
-	case err := <-done:
-		return err
-	case <-ctx.Done():
-		return core.Problem("output_stalled", "Output delivery stalled. Saved task state remains available.", 9)
-	}
-}
-func (a *App) finishDeliveryFailure(ctx context.Context, attempt core.Attempt, delivery error) (core.Attempt, error) {
-	finishCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 3*time.Second)
-	defer cancel()
-	saved, err := a.Store.FinishWithCause(finishCtx, attempt.ID, a.owner.ID, "interrupted", "", "Output delivery stopped before runtime execution.", stopCause(ctx, delivery))
-	if err != nil {
-		return attempt, err
-	}
-	if errors.Is(delivery, context.Canceled) || errors.Is(delivery, context.DeadlineExceeded) {
-		return saved, resultError(saved)
-	}
-	return saved, delivery
-}
 func resultError(attempt core.Attempt) error {
 	if attempt.Failure != nil {
 		if attempt.State != "failed" || core.ValidateFailureClass(attempt.Failure) != nil {

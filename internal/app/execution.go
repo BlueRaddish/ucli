@@ -40,29 +40,11 @@ func (demoDriver) Execute(ctx context.Context, req adapters.Request, emit func(s
 
 // All executors share one accepted-intent -> persisted deltas -> terminal receipt
 // path. The driver, not a local timeout, establishes a native turn's outcome.
-func (a *App) runAccepted(ctx context.Context, attempt core.Attempt, executable string, driver adapters.Driver, emit func(core.Event) error, bindings ...*adapters.NativeBinding) (core.Attempt, error) {
-	lastSeq := int64(0)
-	publishSaved := func() error {
-		for {
-			events, err := a.Store.Events(context.WithoutCancel(ctx), attempt.ID, lastSeq, 100)
-			if err != nil {
-				return err
-			}
-			for _, event := range events {
-				lastSeq = event.Sequence
-				if emit != nil {
-					if err := a.deliver(context.WithoutCancel(ctx), emit, event); err != nil {
-						return err
-					}
-				}
-			}
-			if len(events) < 100 {
-				return nil
-			}
+func (a *App) runAccepted(ctx context.Context, attempt core.Attempt, executable string, driver adapters.Driver, changed func(), bindings ...*adapters.NativeBinding) (core.Attempt, error) {
+	notify := func() {
+		if changed != nil {
+			changed()
 		}
-	}
-	if err := publishSaved(); err != nil {
-		return a.finishDeliveryFailure(ctx, attempt, err)
 	}
 	var partial strings.Builder
 	appendText := func(text string) error {
@@ -78,17 +60,12 @@ func (a *App) runAccepted(ctx context.Context, attempt core.Attempt, executable 
 			}
 			chunk := text[:n]
 			text = text[n:]
-			event, err := a.Store.AppendEvent(ctx, core.Event{TaskID: attempt.TaskID, AttemptID: attempt.ID, Type: "message_delta", Text: chunk}, a.owner.ID)
+			_, err := a.Store.AppendEvent(ctx, core.Event{TaskID: attempt.TaskID, AttemptID: attempt.ID, Type: "message_delta", Text: chunk}, a.owner.ID)
 			if err != nil {
 				return err
 			}
 			partial.WriteString(chunk)
-			lastSeq = event.Sequence
-			if emit != nil {
-				if err := a.deliver(ctx, emit, event); err != nil {
-					return err
-				}
-			}
+			notify()
 		}
 		return nil
 	}
@@ -97,7 +74,8 @@ func (a *App) runAccepted(ctx context.Context, attempt core.Attempt, executable 
 			if _, err := a.Store.RecordNativeContext(ctx, attempt.ID, a.owner.ID, native); err != nil {
 				return err
 			}
-			return publishSaved()
+			notify()
+			return nil
 		}}
 	if len(bindings) == 1 && bindings[0] != nil {
 		copy := *bindings[0]
@@ -155,7 +133,7 @@ func (a *App) runAccepted(ctx context.Context, attempt core.Attempt, executable 
 		return attempt, err
 	}
 	attempt = saved
-	deliveryErr := publishSaved()
+	notify()
 	if outcome.State == "unknown" {
 		return attempt, resultError(attempt)
 	}
@@ -175,9 +153,6 @@ func (a *App) runAccepted(ctx context.Context, attempt core.Attempt, executable 
 		p = core.Problem("runtime_failed", "Runtime execution or cleanup failed: "+runErr.Error(), 8)
 		p.TaskID, p.Origin, p.Acceptance = attempt.TaskID, attempt.Effective.Runtime, "accepted"
 		return attempt, p
-	}
-	if deliveryErr != nil {
-		return attempt, deliveryErr
 	}
 	return attempt, resultError(attempt)
 }

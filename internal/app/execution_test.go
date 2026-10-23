@@ -87,7 +87,11 @@ func TestSharedExecutorPersistsContextAndUnknownFence(t *testing.T) {
 		}
 		return adapters.Outcome{State: "unknown", Message: "stop unconfirmed"}, context.DeadlineExceeded
 	})
-	result, err := a.runAccepted(ctx, accepted, "", driver, func(e core.Event) error { events = append(events, e); return nil })
+	result, err := a.runAccepted(ctx, accepted, "", driver, nil)
+	events, readErr := a.Store.Events(ctx, accepted.ID, 0, 100)
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
 	var p *core.Error
 	if !errors.As(err, &p) || p.Exit != 7 || result.State != "unknown" || result.Output != "partial 東京" || result.NativeContext == nil {
 		t.Fatal("unknown outcome lost", result, err)
@@ -229,18 +233,17 @@ func TestCompleteCleanupWarningIsDurableOnReplay(t *testing.T) {
 	}
 }
 
-func TestPreDispatchDeadlineKeepsItsExitAcrossReplay(t *testing.T) {
+func TestObserverDeadlineDoesNotBecomeExecutionDeadline(t *testing.T) {
 	a, cwd := fixtureApp(t)
 	ctx := context.Background()
 	opt := Options{Input: "synthetic pre-dispatch deadline", CWD: cwd, CommandID: "pre-dispatch-deadline", Demo: true}
 	attempt, err := a.Run(ctx, opt, func(core.Event) error { return context.DeadlineExceeded })
-	var p *core.Error
-	if !errors.As(err, &p) || p.Exit != 124 || attempt.StopCause != "deadline" || attempt.Output != "" {
+	if !errors.Is(err, context.DeadlineExceeded) || attempt.State != "complete" || attempt.StopCause != "" || attempt.Output == "" {
 		t.Fatal(attempt, err)
 	}
 	replayed, err := a.Run(ctx, opt, nil)
-	if !errors.As(err, &p) || p.Exit != 124 || replayed.ID != attempt.ID || replayed.StopCause != "deadline" {
-		t.Fatal("pre-dispatch replay changed cause", replayed, err)
+	if err != nil || replayed.ID != attempt.ID || replayed.State != "complete" || replayed.StopCause != "" {
+		t.Fatal("observer failure changed durable replay", replayed, err)
 	}
 }
 
