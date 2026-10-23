@@ -17,9 +17,12 @@ import (
 // Run executes one CLI invocation. Help and version never open local state.
 func Run(ctx context.Context, args []string, in io.Reader, out, errOut io.Writer) int {
 	p, parseErr := parse(args)
-	ctx, cancel := context.WithCancel(ctx)
+	control, interrupt := context.WithCancel(ctx)
+	defer interrupt()
+	ctx, cancel := context.WithCancel(control)
 	defer cancel()
 	o := newOutput(out, errOut, p.json, cancel)
+	o.control, o.interrupt = control, interrupt
 	exit := execute(ctx, p, parseErr, in, o)
 	if err := o.finish(); err != nil {
 		exit = 9
@@ -254,7 +257,7 @@ func runTask(ctx context.Context, a *app.App, opt app.Options, o *output) (core.
 			_ = o.activity("", true)
 		}
 	}()
-	attempt, err := a.Run(ctx, opt, func(event core.Event) error {
+	attempt, err := observeForeground(ctx, a, opt, o, func(event core.Event) error {
 		if event.Type == "message_delta" && event.Text != "" {
 			hadText.Store(true)
 		}

@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"ucli.local/ucli/internal/app"
@@ -105,12 +106,26 @@ type session struct {
 	accountLabels map[string]string // Cached metadata; typing never polls a native client.
 	chrome        terminalChrome
 	chromeSet     bool
+	runs          map[string]interactiveExecution // UI-owned handles; never inferred from recorded PIDs.
+	observeCtx    context.Context
+	observers     sync.WaitGroup
 }
 
 func interact(ctx context.Context, a *app.App, p invocation, in io.Reader, o *output) int {
 	s := &session{app: a, selection: p.selection.WithDefaults(), cwd: p.cwd, demo: p.demo, out: o}
+	observeCtx, stopObserving := context.WithCancel(ctx)
+	s.observeCtx = observeCtx
+	defer func() {
+		stopObserving()
+		s.observers.Wait()
+		if o.failure() != nil {
+			// A failed renderer detaches presentation. Keep this process owning
+			// accepted work until it settles or the user explicitly interrupts.
+			s.waitAfterOutputFailure()
+		}
+	}()
 	if isTerminal(in) && isTerminal(o.out) && !p.set["plain"] && os.Getenv("TERM") != "dumb" {
-		s.terminal = newTerminalUI(in, o.out, o.cancel, !p.set["no-color"] && os.Getenv("NO_COLOR") == "", terminalOptionsFor(p))
+		s.terminal = newTerminalUI(in, o.out, o.interrupt, !p.set["no-color"] && os.Getenv("NO_COLOR") == "", terminalOptionsFor(p))
 		o.terminal = s.terminal
 		o.out, o.errOut = s.terminal.writer, s.terminal.writer
 		s.input = &lineInput{read: s.readTerminalLine}
@@ -138,6 +153,7 @@ func interact(ctx context.Context, a *app.App, p invocation, in io.Reader, o *ou
 		_ = o.text("Static line interface. There is no live steering or detach.\n")
 	} else {
 		_ = o.text("Type a prompt and press Enter to send. Alt+Enter adds a new line.\n/ shows commands. Tab opens models, accounts and sessions.\n")
+		_ = o.text("Work runs in this UCLI process while you browse. /stop requests stop; closing UCLI stops its workers.\n")
 	}
 	if s.demo {
 		_ = o.text("DEMO enabled: agent responses use simulation or explicit native echo. Voice runs only when you choose it.\n")
@@ -384,6 +400,8 @@ func (s *session) action(ctx context.Context, text string) (bool, error) {
 		return false, s.selectTask(ctx)
 	case "/sessions":
 		return false, s.monitorSessions(ctx)
+	case "/stop":
+		return false, s.stopCurrentExecution()
 	case "/voice":
 		text, err := s.voiceText(ctx, argument)
 		if err != nil {

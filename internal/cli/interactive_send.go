@@ -33,6 +33,13 @@ func (s *session) sendDraft(ctx context.Context) error {
 	}
 	submitted := s.task.Draft
 	s.historyOpen, s.historyNext = false, 0
+	if s.terminal != nil && s.observeCtx != nil {
+		if s.currentExecution() != nil {
+			return core.Problem("task_busy", "This task is still working. Your next prompt is saved, not queued or sent. Use /sessions to watch, /stop to request stop, or /new for another task.", 5)
+		}
+		_ = s.out.prompt(submitted)
+		return s.startInteractiveExecution(ctx, submitted)
+	}
 	_ = s.out.prompt(submitted)
 	_, runErr := runTask(ctx, s.app, s.options(), s.out)
 	if runErr != nil && s.markConflict(runErr, submitted) {

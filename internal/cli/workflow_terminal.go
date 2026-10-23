@@ -34,7 +34,7 @@ func inspectWorkflow(ctx context.Context, p invocation, in io.Reader, o *output,
 	}
 	terminal := existing
 	if terminal == nil && !p.noInput && !p.set["plain"] && os.Getenv("TERM") != "dumb" && isTerminal(in) && isTerminal(o.out) {
-		terminal = newTerminalUI(in, o.out, o.cancel, !p.set["no-color"] && os.Getenv("NO_COLOR") == "", terminalOptionsFor(p))
+		terminal = newTerminalUI(in, o.out, o.interrupt, !p.set["no-color"] && os.Getenv("NO_COLOR") == "", terminalOptionsFor(p))
 		o.terminal = terminal // Run owns closure after draining output.
 		o.out, o.errOut = terminal.writer, terminal.writer
 		location, _ := os.Getwd()

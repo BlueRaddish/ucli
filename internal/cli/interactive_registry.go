@@ -20,6 +20,7 @@ var slashCommands = []slashSpec{
 	{"/permission", "/permission", "choose a permission envelope separately from effort"},
 	{"/tasks", "/tasks", "search and page saved work without running it"},
 	{"/sessions", "/sessions", "watch sessions, progress and saved responses"},
+	{"/stop", "/stop", "request stop for this task's work owned by this process"},
 	{"/workflow", "/workflow FILE", "inspect an offline plan and step details; omit FILE to choose"},
 	{"/voice", "/voice [FILE]", "dictate or transcribe a PCM WAV into the draft; never send it"},
 	{"/result", "/result", "inspect the latest five attempts and saved results"},
@@ -41,6 +42,8 @@ func interactiveHelp() string {
 	text.WriteString("Enter sends your prompt. Alt+Enter or Ctrl+J adds a new line.\n" +
 		"Commands apply only on a line by themselves or with their documented argument.\n" +
 		"Use /draft TEXT to enter text beginning with a slash.\n" +
-		"This foreground milestone has no live steering or detach.\n")
+		"Rich terminals keep accepted work running while you edit or browse.\n" +
+		"/stop requests stop for this task. Closing UCLI requests stop for its workers.\n" +
+		"Busy prompts are saved; automatic queueing and native steering are unavailable.\n")
 	return text.String()
 }

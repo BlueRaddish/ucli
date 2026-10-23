@@ -36,11 +36,13 @@ type output struct {
 	mu          sync.Mutex
 	err         error
 	cancel      context.CancelFunc
+	control     context.Context // Explicit interruption, independent of failed output.
+	interrupt   context.CancelFunc
 	terminal    *terminalUI // Run closes this after the output worker and app
 }
 
 func newOutput(out, errOut io.Writer, jsonMode bool, cancel context.CancelFunc) *output {
-	o := &output{out: out, errOut: errOut, json: jsonMode, queue: make(chan outputItem, 32), done: make(chan struct{}), abort: make(chan struct{}), cancel: cancel}
+	o := &output{out: out, errOut: errOut, json: jsonMode, queue: make(chan outputItem, 32), done: make(chan struct{}), abort: make(chan struct{}), cancel: cancel, interrupt: cancel}
 	go func() {
 		defer close(o.done)
 		for {
