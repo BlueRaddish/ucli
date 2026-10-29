@@ -209,7 +209,7 @@ func shellFrameWelcomeCats(f shellCapturedFrame, ascii bool) bool {
 	if f.Height < 14 || len(f.Rows) != f.Height {
 		return false
 	}
-	face := "(^.\u2a4a.^)"
+	face := "(^.\u2a4a .^)"
 	if ascii {
 		face = "(^._.^)"
 		if strings.ContainsAny(strings.Join(f.Rows, "\n"), "\u2a4a\u0e05\u1a10\ufecc") {
@@ -350,8 +350,16 @@ func TestShellFramePredicateRejectsMovedHeaderAndWrongSize(t *testing.T) {
 	if shellFrameWelcomeCats(f, true) {
 		t.Fatal("missing welcome notice cat accepted")
 	}
-	f.Rows[18] = "[Info] (^.\u2a4a.^)  Ready"
+	f.Rows[18] = "[Info] (^.\u2a4a .^)  Ready"
 	if shellFrameWelcomeCats(f, true) {
 		t.Fatal("Unicode cat accepted in ASCII mode")
+	}
+	f.Rows[0] = "(^.\u2a4a .^) UCLI version"
+	if !shellFrameWelcomeCats(f, false) {
+		t.Fatal("spaced Unicode welcome cats rejected")
+	}
+	f.Rows[18] = "[Info] (^.\u2a4a.^) Ready"
+	if shellFrameWelcomeCats(f, false) {
+		t.Fatal("unspaced Unicode welcome cat accepted")
 	}
 }
