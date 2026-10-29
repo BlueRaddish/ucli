@@ -266,12 +266,12 @@ func TestPackagedConPTYConnectionDiscoveryAndSandbox(t *testing.T) {
 	}
 	defer a.Close()
 	ctx := context.Background()
-	selection := core.Selection{Model: "demo/deep", Account: "demo", Effort: "medium", Permission: "read-only"}
+	selection := core.Selection{Model: "claude/fixture-model", Account: "synthetic-native-account", Effort: "medium", Permission: "read-only"}
 	seed, err := a.Draft(ctx, "", "Saved account discovery draft", cwd, selection)
 	if err != nil {
 		t.Fatal(err)
 	}
-	p := startConPTYOptions(t, binary, home, cwd, false)
+	p := startNativeConPTYOptions(t, binary, home, cwd, false)
 	p.awaitVisible(t, 0, seed.Draft)
 	const composition = "Unsent composition stays here"
 	mark := p.send(t, "\x1b[200~\n"+composition+"\x1b[201~")
@@ -299,7 +299,8 @@ func TestPackagedConPTYConnectionDiscoveryAndSandbox(t *testing.T) {
 	mark = p.send(t, "sandbox")
 	p.awaitVisible(t, mark, "full local computer access")
 	mark = p.send(t, "\r")
-	p.awaitVisible(t, mark, "Sandbox selected: full local computer access")
+	p.awaitVisible(t, mark, "Permission selected: sandbox")
+	p.awaitVisible(t, mark, "prompt kept; Enter sends")
 	p.awaitVisible(t, mark, composition)
 	// Intentional EOF saves the partial composition without submitting it.
 	p.send(t, "\x04")
@@ -342,6 +343,18 @@ func startConPTY(t *testing.T, binary, home, cwd string, noWindow bool) *pseudoT
 }
 
 func startConPTYOptions(t *testing.T, binary, home, cwd string, noWindow bool, options ...string) *pseudoTerminal {
+	t.Helper()
+	return startConPTYMode(t, binary, home, cwd, noWindow, true, options...)
+}
+
+// Native mode is only for inspect/selection fixtures with an isolated UCLI home
+// and no linked accounts. These journeys never submit a native task or login.
+func startNativeConPTYOptions(t *testing.T, binary, home, cwd string, noWindow bool, options ...string) *pseudoTerminal {
+	t.Helper()
+	return startConPTYMode(t, binary, home, cwd, noWindow, false, options...)
+}
+
+func startConPTYMode(t *testing.T, binary, home, cwd string, noWindow, demo bool, options ...string) *pseudoTerminal {
 	t.Helper()
 	p := &pseudoTerminal{changed: make(chan struct{}, 1), drained: make(chan struct{}), sent: make(map[int]time.Time)}
 	t.Cleanup(func() { p.close(t) })
@@ -414,7 +427,11 @@ func startConPTYOptions(t *testing.T, binary, home, cwd string, noWindow bool, o
 	if err != nil {
 		t.Fatal(err)
 	}
-	args, err := windows.UTF16PtrFromString(windows.ComposeCommandLine(append([]string{binary, "--home", home, "--cwd", cwd, "--demo"}, options...)))
+	arguments := []string{binary, "--home", home, "--cwd", cwd}
+	if demo {
+		arguments = append(arguments, "--demo")
+	}
+	args, err := windows.UTF16PtrFromString(windows.ComposeCommandLine(append(arguments, options...)))
 	if err != nil {
 		t.Fatal(err)
 	}
