@@ -79,7 +79,7 @@ func TestPackagedConPTYSlashCompletion(t *testing.T) {
 	observe("tab-completed-only", "/models ", "", "", false)
 	unchanged()
 	mark := p.send(t, "\r")
-	p.awaitVisible(t, mark, "Choose a model")
+	p.awaitVisible(t, mark, "Choose a CLI")
 	p.send(t, "\x1b")
 	p.awaitVisible(t, 0, seed.Draft)
 	p.send(t, "\x15")

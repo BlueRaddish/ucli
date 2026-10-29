@@ -18,6 +18,17 @@ func (s *session) chooseTerminal(ctx context.Context, title string, rows []choic
 }
 
 func pickTerminal(ctx context.Context, terminal pickerTerminal, title string, rows []choice, current string) (string, error) {
+	return pickTerminalRemember(ctx, terminal, title, rows, current, nil)
+}
+
+// Kept only for a continuing local drilldown, never persisted as a selection.
+type pickerMemory struct {
+	editor  textEditor
+	focused string
+	top     int
+}
+
+func pickTerminalRemember(ctx context.Context, terminal pickerTerminal, title string, rows []choice, current string, memory *pickerMemory) (string, error) {
 	options := make([]pickerOption, 0, len(rows))
 	for _, row := range rows {
 		label, detail, found := strings.Cut(row.label, " - ")
@@ -28,6 +39,15 @@ func pickTerminal(ctx context.Context, terminal pickerTerminal, title string, ro
 	}
 	picker := newPicker(title, options, current)
 	var editor textEditor
+	if memory != nil {
+		editor = memory.editor
+		picker.query, picker.top = editor.text, memory.top
+		if memory.focused != "" {
+			picker.focused = memory.focused
+		}
+		picker.reconcileFocus()
+		defer func() { *memory = pickerMemory{editor, picker.focused, picker.top} }()
+	}
 	for {
 		if err := ctx.Err(); err != nil {
 			return "", err

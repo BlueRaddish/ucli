@@ -246,7 +246,7 @@ func savedTasks(t *testing.T, home string) []core.Task {
 
 func TestInteractiveChoicesFollowupNewAndHistory(t *testing.T) {
 	home, cwd := t.TempDir(), t.TempDir()
-	input := "/models\ndeep\n1\n/effort\nmedium\n1\n/accounts\nlocal\n1\nFirst prompt\n\nFollow up\n/result\n/new\n/draft New draft\n/exit\n"
+	input := "/models\nLocal demo\n1\ndeep\n1\n1\n/effort\nmedium\n1\n/accounts\nlocal\n1\nFirst prompt\n\nFollow up\n/result\n/new\n/draft New draft\n/exit\n"
 	code, text := runInteractive(t, home, cwd, input, true)
 	if code != 0 {
 		t.Fatalf("%d %s", code, text)

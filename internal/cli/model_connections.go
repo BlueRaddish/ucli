@@ -11,9 +11,63 @@ import (
 	"ucli.local/ucli/internal/core"
 )
 
-func modelChoices(catalog app.ModelCatalog) []choice {
-	rows := []choice{{"model:auto", "Auto - choose among connected, supported models"}}
+// The first layer is runtime-sized, not model-sized. Identity-only providers
+// stay in Accounts; a provider without a cached catalog still has a setup path.
+func modelRuntimeChoices(catalog app.ModelCatalog) []choice {
+	rows := []choice{{"auto", "Auto - route among connected, supported models"}}
+	seen := map[string]bool{}
+	add := func(id, name string) {
+		if seen[id] || id == "" {
+			return
+		}
+		seen[id] = true
+		total, ready := 0, 0
+		for _, model := range catalog.Models {
+			if model.Runtime == id {
+				total++
+				if model.Available {
+					ready++
+				}
+			}
+		}
+		detail := fmt.Sprintf("%d ready / %d cached models", ready, total)
+		if total == 0 {
+			detail = "No cached models - open setup and discovery"
+		}
+		rows = append(rows, choice{"runtime:" + id, name + " - " + detail})
+	}
+	for _, provider := range catalog.Providers {
+		if provider.Integration != "identity-only" {
+			add(provider.ID, provider.Name)
+		}
+	}
 	for _, model := range catalog.Models {
+		add(model.Runtime, modelRuntimeName(catalog, model.Runtime))
+	}
+	return rows
+}
+
+func modelRuntimeName(catalog app.ModelCatalog, runtime string) string {
+	for _, provider := range catalog.Providers {
+		if provider.ID == runtime {
+			return provider.Name
+		}
+	}
+	if runtime == "demo" {
+		return "Local demo"
+	}
+	if runtime == "muse" {
+		return "Muse echo (no AI)"
+	}
+	return runtime
+}
+
+func modelChoices(catalog app.ModelCatalog, runtime string) []choice {
+	var rows []choice
+	for _, model := range catalog.Models {
+		if model.Runtime != runtime {
+			continue
+		}
 		if model.Available {
 			rows = append(rows, choice{"model:" + model.ID, model.Label + " - " + model.ID + " | available in cached catalog"})
 		} else {
@@ -21,9 +75,51 @@ func modelChoices(catalog app.ModelCatalog) []choice {
 		}
 	}
 	for _, provider := range catalog.Providers {
-		rows = append(rows, choice{"provider:" + provider.ID, provider.Name + " setup - " + installationLabel(provider.Installation) + " | " + authenticationLabel(provider.Authentication)})
+		if provider.ID == runtime {
+			rows = append(rows, choice{"provider:" + provider.ID, provider.Name + " setup - " + installationLabel(provider.Installation) + " | " + authenticationLabel(provider.Authentication)})
+		}
 	}
-	return rows
+	return append(rows, choice{"back", "Back to CLIs"})
+}
+
+func modelEffortChoices(model core.Model, catalog app.ModelCatalog) []choice {
+	detail := "choose a supported effort before dispatch"
+	if model.ID != "auto" && len(model.Efforts) == 0 {
+		detail = "no adjustable effort advertised; runtime compatibility is checked before sending"
+	}
+	rows := []choice{{"auto", "Auto - " + detail}}
+	levels := model.Efforts
+	if model.ID == "auto" {
+		for _, candidate := range catalog.Models {
+			if candidate.Available {
+				levels = append(levels, candidate.Efforts...)
+			}
+		}
+	}
+	seen := map[string]bool{"auto": true}
+	for _, effort := range levels {
+		if effort != "" && !seen[effort] {
+			seen[effort] = true
+			rows = append(rows, choice{effort, effort + " - advertised by the selected model"})
+			if model.ID == "auto" {
+				rows[len(rows)-1].label = effort + " - limit Auto to models supporting this effort"
+			}
+		}
+	}
+	return append(rows, choice{"back", "Back to models"})
+}
+
+func (s *session) chooseModelStep(ctx context.Context, title string, rows []choice, current string, memory *pickerMemory) (string, error) {
+	if s.terminal != nil {
+		return pickTerminalRemember(ctx, s.terminal, title, rows, current, memory)
+	}
+	labelled := append([]choice(nil), rows...)
+	for i := range labelled {
+		if labelled[i].value == current {
+			labelled[i].label += " (current)"
+		}
+	}
+	return s.choose(ctx, title, labelled, current)
 }
 
 func (s *session) selectModel(ctx context.Context) error {
@@ -31,55 +127,89 @@ func (s *session) selectModel(ctx context.Context) error {
 }
 
 func (s *session) selectModelCatalog(ctx context.Context, load func(context.Context) (app.ModelCatalog, error)) error {
-	for {
-		catalog, err := load(ctx)
-		if err != nil {
-			return connectionProblem(err)
+	catalog, err := load(ctx)
+	if err != nil {
+		return connectionProblem(err)
+	}
+	currentRuntime := "auto"
+	for _, model := range catalog.Models {
+		if model.ID == s.selection.Model {
+			currentRuntime = "runtime:" + model.Runtime
+			break
 		}
-		value, err := s.choose(ctx, "Choose a model", modelChoices(catalog), "model:"+s.selection.Model)
-		if err != nil || value == "" {
+	}
+	var runtimes pickerMemory
+	models, efforts := map[string]*pickerMemory{}, map[string]*pickerMemory{}
+	memory := func(items map[string]*pickerMemory, key string) *pickerMemory {
+		if items[key] == nil {
+			items[key] = &pickerMemory{}
+		}
+		return items[key]
+	}
+	for {
+		runtime, err := s.chooseModelStep(ctx, "Choose a CLI", modelRuntimeChoices(catalog), currentRuntime, &runtimes)
+		if err != nil || runtime == "" {
 			return err
 		}
-		if !strings.HasPrefix(value, "model:") {
-			provider := strings.TrimPrefix(value, "provider:")
-			var detail *core.Model
-			if strings.HasPrefix(value, "info:") {
-				provider = ""
-				for _, model := range catalog.Models {
-					if model.ID == strings.TrimPrefix(value, "info:") {
-						provider = model.Runtime
-						detail = &model
+		for {
+			selected := core.Model{ID: "auto", Label: "Auto routing", Available: true}
+			if runtime != "auto" {
+				id := strings.TrimPrefix(runtime, "runtime:")
+				value, err := s.chooseModelStep(ctx, modelRuntimeName(catalog, id)+" - Choose a model", modelChoices(catalog, id), "model:"+s.selection.Model, memory(models, id))
+				if err != nil {
+					return err
+				}
+				if value == "" || value == "back" {
+					break
+				}
+				var model *core.Model
+				for _, entry := range catalog.Models {
+					if entry.Runtime == id && ("model:"+entry.ID == value || "info:"+entry.ID == value) {
+						copy := entry
+						model = &copy
 						break
 					}
 				}
+				if strings.HasPrefix(value, "provider:") || model != nil && !model.Available {
+					if err := s.modelProvider(ctx, id, catalog, model); err != nil {
+						return err
+					}
+					catalog, err = load(ctx)
+					if err != nil {
+						return connectionProblem(err)
+					}
+					continue
+				}
+				if model == nil || !model.Available {
+					return core.Problem("model_unavailable", "That model is not ready in UCLI. Your current model and account are kept.", 3)
+				}
+				selected = *model
 			}
-			if err := s.modelProvider(ctx, provider, catalog, detail); err != nil {
+			effort, err := s.chooseModelStep(ctx, "Choose effort - "+selected.Label, modelEffortChoices(selected, catalog), s.selection.Effort, memory(efforts, selected.ID))
+			if err != nil {
 				return err
 			}
-			continue
-		}
-		model := strings.TrimPrefix(value, "model:")
-		// Check the snapshot again rather than interpreting arbitrary choice
-		// values as model IDs. Browsing a blocked entry never changes a pin.
-		allowed := model == "auto"
-		for _, entry := range catalog.Models {
-			allowed = allowed || entry.ID == model && entry.Available
-		}
-		if !allowed {
-			return core.Problem("model_unavailable", "That model is not ready in UCLI. Your current model and account are kept.", 3)
-		}
-		previous := s.selection
-		s.selection.Model = model
-		if s.task != nil && s.task.Draft != "" {
-			if err := s.storeDraft(ctx, s.task.Draft, false); err != nil {
-				s.selection = previous
+			if effort == "" || effort == "back" {
+				if runtime == "auto" {
+					break
+				}
+				continue
+			}
+			// Model and effort are one pending choice until this last action.
+			// Persist once, preserving account/permission and the exact draft/CAS.
+			previous := s.selection
+			s.selection.Model, s.selection.Effort = selected.ID, effort
+			if s.task != nil {
+				if err := s.storeDraft(ctx, s.task.Draft, false); err != nil {
+					s.selection = previous
+					return err
+				}
+			}
+			if err := s.out.text("Model selected. Model and effort saved together; your account and permission choices are kept. Native identity, version and capabilities are checked again before sending.\n"); err != nil {
 				return err
 			}
+			return s.out.notice("Model selected: "+selected.ID+" | effort "+effort, toneSuccess)
 		}
-		if err := s.out.text("Model selected. Your account, effort and permission choices are kept. Native identity, version and capabilities are checked again before sending.\n"); err != nil {
-			return err
-		}
-		return s.out.notice("Model selected: "+model, toneSuccess)
 	}
 }
 

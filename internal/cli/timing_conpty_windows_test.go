@@ -47,11 +47,16 @@ func TestPackagedConPTYRichTiming(t *testing.T) {
 			}
 			measure(0, "Tab actions", "first_frame")
 			mark := p.send(t, "\x15/models\r")
-			measure(mark, "Choose a model", "open_models")
+			measure(mark, "Choose a CLI", "open_models")
+			// Enter the demo model layer before measuring its local filter.
+			mark = p.send(t, "Local demo\r")
+			p.await(t, mark, "Choose a model")
 			mark = p.send(t, "deep")
 			// Differential redraw can retain the Search label. Time the new
 			// filtered candidate, which proves the list has responded to input.
 			measure(mark, "demo/deep | available in cached catalog", "filter_models")
+			mark = p.send(t, "\x1b")
+			p.await(t, mark, "Choose a CLI")
 			mark = p.send(t, "\x1b")
 			measure(mark, original.Draft, "cancel_to_composer")
 			p.send(t, "\x15/exit\r")

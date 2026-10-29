@@ -14,27 +14,30 @@ import (
 )
 
 func TestModelChoicesSeparateUnavailableInspectionFromSelection(t *testing.T) {
-	rows := modelChoices(app.ModelCatalog{
+	catalog := app.ModelCatalog{
 		Models:    []core.Model{{ID: "claude/sonnet", Label: "Sonnet", Runtime: "claude"}, {ID: "agy/synthetic", Label: "Synthetic", Runtime: "agy"}, {ID: "demo/fast", Label: "Fast", Runtime: "demo", Available: true}, {ID: "claude/opus", Label: "Opus", Runtime: "claude"}},
-		Providers: []app.ProviderCatalog{{ID: "claude", Name: "Claude Code", Installation: "executable-found", Authentication: "not-checked", Integration: "experimental"}},
-	})
-	if len(rows) != 6 || rows[1].value != "info:claude/sonnet" || rows[2].value != "info:agy/synthetic" || rows[3].value != "model:demo/fast" {
-		t.Fatalf("blocked models became selection actions: %+v", rows)
+		Providers: []app.ProviderCatalog{{ID: "claude", Name: "Claude Code", Installation: "executable-found", Authentication: "not-checked", Integration: "experimental"}, {ID: "github", Name: "GitHub", Integration: "identity-only"}},
 	}
-	seen := map[string]bool{}
-	for _, row := range rows {
-		if seen[row.value] {
-			t.Fatalf("duplicate picker focus identity: %s", row.value)
+	runtimes := modelRuntimeChoices(catalog)
+	if len(runtimes) != 4 || runtimes[1].value != "runtime:claude" {
+		t.Fatalf("unexpected CLI list: %+v", runtimes)
+	}
+	for _, row := range runtimes {
+		if strings.Contains(row.value, "github") || strings.HasPrefix(row.value, "model:") {
+			t.Fatalf("model/identity leaked into CLI layer: %+v", row)
 		}
-		seen[row.value] = true
 	}
-	if !strings.Contains(rows[5].label, "sign-in not checked") || !strings.Contains(rows[5].label, "installed (version not checked)") {
+	rows := modelChoices(catalog, "claude")
+	if len(rows) != 4 || rows[0].value != "info:claude/sonnet" || rows[1].value != "info:claude/opus" || rows[3].value != "back" {
+		t.Fatalf("blocked models became selection actions or crossed CLI scope: %+v", rows)
+	}
+	if !strings.Contains(rows[2].label, "sign-in not checked") || !strings.Contains(rows[2].label, "installed (version not checked)") {
 		t.Fatal("discovery implied authenticated status")
 	}
 	terminal := &pickerTestTerminal{events: []keyEvent{{kind: keyText, text: "claude/"}, {kind: keyDown}, {kind: keyEnter}}}
-	value, err := pickTerminal(context.Background(), terminal, "Models", rows, "model:demo/fast")
+	value, err := pickTerminal(context.Background(), terminal, "Models", rows, "")
 	if err != nil || value != "info:claude/opus" {
-		t.Fatalf("blocked aliases cannot be navigated independently: %s %v", value, err)
+		t.Fatalf("blocked models cannot be inspected: %s %v", value, err)
 	}
 }
 
@@ -49,7 +52,7 @@ func TestModelPickerInspectAndCancelPreservesEveryPin(t *testing.T) {
 	// The discovered metadata is synthetic: no fabricated fallback aliases or
 	// real provider/account are needed to exercise the unavailable row.
 	catalog := blockedModelCatalog()
-	input := newLineInput(strings.NewReader("claude/discovered-fixed\n1\n0\n0\n"))
+	input := newLineInput(strings.NewReader("claude\n1\nclaude/discovered-fixed\n1\n0\n0\n0\n"))
 	defer close(input.stop)
 	s := &session{app: a, out: o, input: input, selection: core.Selection{Model: "demo/deep", Account: "pinned", Effort: "high", Permission: "read-only"}, task: &core.Task{ID: "untouched", Revision: 7, Draft: "keep this composition"}}
 	before := s.selection
@@ -97,7 +100,11 @@ func TestModelInspectionRichKeepsComposerAndPins(t *testing.T) {
 				catalog.Providers = nil
 				query = "muse/echo"
 			}
-			events := []keyEvent{{kind: keyText, text: query}, {kind: keyEnter}}
+			runtimeQuery := "claude"
+			if scenario == "model-without-provider" {
+				runtimeQuery = "muse"
+			}
+			events := []keyEvent{{kind: keyText, text: runtimeQuery}, {kind: keyEnter}, {kind: keyText, text: query}, {kind: keyEnter}}
 			if scenario == "model-without-provider" {
 				events = append(events, keyEvent{kind: keyEnter})
 			} else if scenario != "model-back" {
@@ -105,7 +112,7 @@ func TestModelInspectionRichKeepsComposerAndPins(t *testing.T) {
 			} else {
 				events = append(events, keyEvent{kind: keyEscape})
 			}
-			events = append(events, keyEvent{kind: keyEscape})
+			events = append(events, keyEvent{kind: keyEscape}, keyEvent{kind: keyEscape})
 			for _, event := range events {
 				u.enqueue(event)
 			}
