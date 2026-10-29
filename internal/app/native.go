@@ -71,6 +71,9 @@ func (a *App) resolveNativeRoute(ctx context.Context, opt Options, refreshStale 
 	if err = core.ValidateSelection(selection); err != nil {
 		return fail(err)
 	}
+	if err = requirePermission(selection, false); err != nil {
+		return fail(err)
+	}
 	items, err := a.LinkedConnections(ctx)
 	if err != nil {
 		return fail(err)
@@ -132,6 +135,9 @@ func planNativeRouteWithRefresh(ctx context.Context, w core.Workspace, selection
 func planNativeRoute(w core.Workspace, selection core.Selection, items []connections.Connection, now time.Time) (core.Route, string, *adapters.NativeBinding, error) {
 	fail := func(err error) (core.Route, string, *adapters.NativeBinding, error) {
 		return core.Route{}, "", nil, err
+	}
+	if err := requirePermission(selection, false); err != nil {
+		return fail(err)
 	}
 	if len(items) == 0 {
 		return fail(core.Problem("provider_not_ready", "Connect a native account with ucli login codex or ucli login claude. Use --demo for the local task loop.", 3))
@@ -236,7 +242,7 @@ func planNativeRoute(w core.Workspace, selection core.Selection, items []connect
 				Route: core.Route{Runtime: item.Provider, Provider: provider, Model: id, Account: item.ID, Mode: "native"}, Workspace: w,
 				Admitted: true, Available: true, WorkspaceAllowed: true, AuthMode: item.AuthMode, Authenticated: true, BindingVerified: true, PrimaryModelFixed: true,
 				Advertised: true, CatalogObservedAt: item.ObservedAt, Entitlement: "unknown", Billing: "included", Efforts: efforts, DefaultEffort: defaultEffort,
-				Permissions: map[string]map[string]routing.Capability{"filesystem": {"read-only": {Support: "mapped"}, "sandbox": {Support: "mapped"}}},
+				Permissions: permissionCapabilities(false),
 				Pools:       []routing.PoolUse{{Key: pool, Unit: "native-turns"}}})
 		}
 	}

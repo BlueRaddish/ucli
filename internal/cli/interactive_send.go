@@ -37,6 +37,11 @@ func (s *session) sendDraft(ctx context.Context) error {
 		if s.currentExecution() != nil {
 			return core.Problem("task_busy", "This task is still working. Your next prompt is saved, not queued or sent. Use /sessions to watch, /stop to request stop, or /new for another task.", 5)
 		}
+		if !permissionSupported(s.selection.WithDefaults().Permission, s.demo) {
+			// Restored unsupported pins need an explicit choice. Even a confirmed
+			// choice returns to the draft; only a later Enter may dispatch it.
+			return s.selectPermission(ctx)
+		}
 		_ = s.out.prompt(submitted)
 		return s.startInteractiveExecution(ctx, submitted)
 	}

@@ -555,6 +555,9 @@ func (s *session) selectSetting(ctx context.Context, field string) error {
 	if field == "/models" {
 		return s.selectModel(ctx)
 	}
+	if field == "/permission" {
+		return s.selectPermission(ctx)
+	}
 	if field == "/accounts" {
 		if _, err := s.app.LinkedConnections(ctx); err != nil {
 			return connectionProblem(err)
@@ -577,9 +580,6 @@ func (s *session) selectSetting(ctx context.Context, field string) error {
 		for _, effort := range []string{"low", "medium", "high", "max"} {
 			rows = append(rows, choice{effort, effort})
 		}
-	case "/permission":
-		current = s.selection.Permission
-		rows = []choice{{"read-only", "read-only - require an enforceable read-only route"}, {"workspace-write", "workspace-write - permit supported workspace changes"}, {"sandbox", "sandbox - full local computer access"}, {"unrestricted", "unrestricted - request broader authority explicitly"}}
 	}
 	value, err := s.choose(ctx, "Choose "+strings.TrimPrefix(field, "/")+" for the next submission", rows, current)
 	if err != nil || value == "" {
@@ -595,13 +595,6 @@ func (s *session) selectSetting(ctx context.Context, field string) error {
 	case "/effort":
 		s.selection.Effort = value
 		_ = s.out.text("Effort changes reasoning intent, not permissions. Unsupported choices are rejected.\n")
-	case "/permission":
-		s.selection.Permission = value
-		if value == "sandbox" {
-			_ = s.out.text("Sandbox selected: full local computer access using the connected agent's tools.\n")
-		} else {
-			_ = s.out.text("Permission request recorded. A runtime must enforce it before work starts.\n")
-		}
 	}
 	if s.task != nil && s.task.Draft != "" {
 		if err := s.storeDraft(ctx, s.task.Draft, false); err != nil {

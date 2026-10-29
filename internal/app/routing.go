@@ -108,8 +108,8 @@ func (a *App) resolveRoute(ctx context.Context, opt Options, verifyRuntime bool)
 		route, executable, _, err := a.resolveNativeRoute(ctx, opt, false)
 		return route, executable, err
 	}
-	if selection.Permission != "read-only" {
-		return core.Route{}, "", core.Problem("unsupported_permission", "Demonstrations support read-only work only; they never edit your workspace.", 5)
+	if err := requirePermission(selection, true); err != nil {
+		return core.Route{}, "", err
 	}
 	model := selection.Model
 	why := "Explicit local demonstration: no AI model, tools, credentials or provider usage."
@@ -174,7 +174,7 @@ func (a *App) resolveRoute(ctx context.Context, opt Options, verifyRuntime bool)
 	candidate := routing.Candidate{ID: model, Route: core.Route{Runtime: selected.Runtime, Provider: provider, Model: model, Account: account, Mode: mode}, Workspace: w,
 		Admitted: true, Available: true, WorkspaceAllowed: true, AuthMode: "none", PrimaryModelFixed: true,
 		Advertised: true, CatalogObservedAt: now, Entitlement: "not-required", Billing: "unmetered", Efforts: efforts, DefaultEffort: effort,
-		Permissions: map[string]map[string]routing.Capability{"filesystem": {"read-only": {Support: "mapped"}}},
+		Permissions: permissionCapabilities(true),
 		Pools:       []routing.PoolUse{{Key: pool, Unit: "local-runs"}}}
 	decision, err := routing.Resolve(routing.Request{Requested: selection, Workspace: w, AllowedAccounts: []string{account}, Candidates: []routing.Candidate{candidate},
 		Pools: []routing.PoolSnapshot{{Key: pool, Unit: "local-runs", Unmetered: true, ObservedAt: now}}, Now: now, BoundedAttempt: true})
