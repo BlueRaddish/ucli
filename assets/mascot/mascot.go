@@ -1,4 +1,4 @@
-// Package mascot provides pure playback of the bundled eight-column cat frames.
+// Package mascot plays the bundled eight-column artwork in a nine-cell slot.
 // It owns no timers, terminal state, filesystem access or operation lifecycles.
 package mascot
 
@@ -14,7 +14,7 @@ import (
 //go:embed cat-animations.json
 var catalogJSON string
 
-const fallback = "(^._.^) "
+const fallback = "(^._.^)  "
 
 type frameFile struct {
 	Text string `json:"text"`
@@ -110,8 +110,16 @@ func parseCatalog(raw string) map[string]sequence {
 				return nil
 			}
 			duration := time.Duration(frame.MS) * time.Millisecond
-			ascii := strings.NewReplacer("⩊", "_", "ฅ", ",", "ᨐ", "^").Replace(frame.Text)
-			s.frames = append(s.frames, timedFrame{frame.Text, ascii, duration})
+			// A font's ink can overhang its logical cell. Give the decorative
+			// mouth one real blank on its right; this cannot supply missing
+			// glyphs, so ASCII remains the portable fallback. Pad other frames
+			// to the same nine-cell slot without changing their artwork.
+			text := frame.Text + " "
+			if strings.ContainsRune(frame.Text, '⩊') {
+				text = strings.ReplaceAll(frame.Text, "⩊", "⩊ ")
+			}
+			ascii := strings.NewReplacer("⩊", "_", "ฅ", ",", "ᨐ", "^").Replace(frame.Text) + " "
+			s.frames = append(s.frames, timedFrame{text, ascii, duration})
 			s.duration += duration
 		}
 		result[animation.ID] = s

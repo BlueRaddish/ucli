@@ -84,8 +84,8 @@ func (m terminalModel) mascotNotice(width int) terminalLine {
 		return line
 	}
 	// Status and recovery text win over decoration at constrained widths. The
-	// eight-cell slot never changes position as eyes or paws change frame.
-	if cellWidth(line.Text)+9 > max(1, width-1) {
+	// padded slot never changes position as eyes or paws change frame.
+	if cellWidth(line.Text)+cellWidth(m.mascot.frame)+1 > max(1, width-1) {
 		return line
 	}
 	label, text, found := strings.Cut(line.Text, "] ")

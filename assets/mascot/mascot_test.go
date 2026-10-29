@@ -19,24 +19,24 @@ func TestFramePlaybackBoundaries(t *testing.T) {
 		text     string
 		next     time.Duration
 	}{
-		{"negative", "wave", -time.Second, false, false, "(^.⩊.^) ", 280 * time.Millisecond},
-		{"before boundary", "wave", 280*time.Millisecond - 1, false, false, "(^.⩊.^) ", 1},
-		{"at boundary", "wave", 280 * time.Millisecond, false, false, "(^.⩊.^)/", 180 * time.Millisecond},
-		{"friendly ASCII", "wave", 280 * time.Millisecond, false, true, "(^._.^)/", 180 * time.Millisecond},
-		{"loop wrap", "working", 2600 * time.Millisecond, false, false, "(^._.^) ", 900 * time.Millisecond},
-		{"second loop", "working", 3500 * time.Millisecond, false, false, "(^-_-^) ", 180 * time.Millisecond},
-		{"done starts", "done", 0, false, false, "(^>⩊<^)/", 260 * time.Millisecond},
-		{"done static", "done", 0, true, false, "(^~⩊~^) ", 0},
-		{"done settled", "done", 1640 * time.Millisecond, false, false, "(^~⩊~^) ", 0},
-		{"rest starts", "rest", 0, false, false, "(^-⩊-^) ", 400 * time.Millisecond},
-		{"rest small z", "rest", 400 * time.Millisecond, false, false, "(^-⩊-^)z", 400 * time.Millisecond},
-		{"rest big Z", "rest", 800 * time.Millisecond, false, false, "(^-⩊-^)Z", 800 * time.Millisecond},
-		{"rest settled", "rest", 2600 * time.Millisecond, false, false, "(^-⩊-^) ", 0},
-		{"rest static ASCII", "rest", time.Hour, true, true, "(^-_-^) ", 0},
-		{"peek hidden", "peek", 0, false, false, "_____   ", 350 * time.Millisecond},
-		{"peek visible ASCII", "peek", 850 * time.Millisecond, false, true, "_,^,_   ", 450 * time.Millisecond},
-		{"peek settled", "peek", time.Hour, false, false, "_ฅᨐฅ_   ", 0},
-		{"static loop", "looking", time.Hour, true, false, "(^._.^) ", 0},
+		{"negative", "wave", -time.Second, false, false, "(^.⩊ .^) ", 280 * time.Millisecond},
+		{"before boundary", "wave", 280*time.Millisecond - 1, false, false, "(^.⩊ .^) ", 1},
+		{"at boundary", "wave", 280 * time.Millisecond, false, false, "(^.⩊ .^)/", 180 * time.Millisecond},
+		{"friendly ASCII", "wave", 280 * time.Millisecond, false, true, "(^._.^)/ ", 180 * time.Millisecond},
+		{"loop wrap", "working", 2600 * time.Millisecond, false, false, "(^._.^)  ", 900 * time.Millisecond},
+		{"second loop", "working", 3500 * time.Millisecond, false, false, "(^-_-^)  ", 180 * time.Millisecond},
+		{"done starts", "done", 0, false, false, "(^>⩊ <^)/", 260 * time.Millisecond},
+		{"done static", "done", 0, true, false, "(^~⩊ ~^) ", 0},
+		{"done settled", "done", 1640 * time.Millisecond, false, false, "(^~⩊ ~^) ", 0},
+		{"rest starts", "rest", 0, false, false, "(^-⩊ -^) ", 400 * time.Millisecond},
+		{"rest small z", "rest", 400 * time.Millisecond, false, false, "(^-⩊ -^)z", 400 * time.Millisecond},
+		{"rest big Z", "rest", 800 * time.Millisecond, false, false, "(^-⩊ -^)Z", 800 * time.Millisecond},
+		{"rest settled", "rest", 2600 * time.Millisecond, false, false, "(^-⩊ -^) ", 0},
+		{"rest static ASCII", "rest", time.Hour, true, true, "(^-_-^)  ", 0},
+		{"peek hidden", "peek", 0, false, false, "_____    ", 350 * time.Millisecond},
+		{"peek visible ASCII", "peek", 850 * time.Millisecond, false, true, "_,^,_    ", 450 * time.Millisecond},
+		{"peek settled", "peek", time.Hour, false, false, "_ฅᨐฅ_    ", 0},
+		{"static loop", "looking", time.Hour, true, false, "(^._.^)  ", 0},
 		{"unknown", "absent", time.Hour, false, false, fallback, 0},
 	}
 	for _, test := range tests {
@@ -49,7 +49,7 @@ func TestFramePlaybackBoundaries(t *testing.T) {
 	}
 }
 
-func TestBundledFramesAndFallbacksHaveEightCells(t *testing.T) {
+func TestBundledFramesAndFallbacksHaveNineCells(t *testing.T) {
 	data := parseCatalog(catalogJSON)
 	if len(data) != 8 {
 		t.Fatal("bundled catalog failed validation")
@@ -70,8 +70,8 @@ func TestBundledFramesAndFallbacksHaveEightCells(t *testing.T) {
 						}
 					}
 				}
-				if text != want || next != frame.duration || uniseg.StringWidth(text) != 8 {
-					t.Fatalf("%s at %v: %q next %v, want %q next %v and eight cells", id, elapsed, text, next, want, frame.duration)
+				if text != want || next != frame.duration || uniseg.StringWidth(text) != 9 {
+					t.Fatalf("%s at %v: %q next %v, want %q next %v and nine cells", id, elapsed, text, next, want, frame.duration)
 				}
 			}
 			elapsed += frame.duration
@@ -85,8 +85,28 @@ func TestBundledFramesAndFallbacksHaveEightCells(t *testing.T) {
 			t.Fatalf("%s did not loop/settle: %q %v", id, text, next)
 		}
 	}
-	if count != 38 || uniseg.StringWidth(fallback) != 8 {
+	if count != 38 || uniseg.StringWidth(fallback) != 9 {
 		t.Fatalf("unexpected catalog frame count %d or fallback width", count)
+	}
+}
+
+func TestFriendlyMouthReservesRightBreathingRoom(t *testing.T) {
+	friendly := 0
+	for id, sequence := range parseCatalog(catalogJSON) {
+		elapsed := time.Duration(0)
+		for _, frame := range sequence.frames {
+			text, _ := Frame(id, elapsed, false, false)
+			if strings.ContainsRune(text, '⩊') {
+				friendly++
+				if !strings.Contains(text, "⩊ ") {
+					t.Fatalf("%s at %v crowds the mouth with the next glyph: %q", id, elapsed, text)
+				}
+			}
+			elapsed += frame.duration
+		}
+	}
+	if friendly != 15 {
+		t.Fatalf("checked %d friendly frames, want all 15", friendly)
 	}
 }
 
@@ -106,7 +126,7 @@ func TestInvalidCatalogFallsBackWithoutPlayback(t *testing.T) {
 		"control":             func(c *catalogFile) { c.Animations[0].Frames[0].Text = "\x1b^.⩊.^) " },
 		"directional control": func(c *catalogFile) { c.Animations[0].Frames[0].Text = "\u202e^.⩊.^) " },
 		"legacy mouth":        func(c *catalogFile) { c.Animations[0].Frames[0].Text = "(^.ﻌ.^) " },
-		"wrong mood":          func(c *catalogFile) { c.Animations[0].Frames[0].Text = fallback },
+		"wrong mood":          func(c *catalogFile) { c.Animations[0].Frames[0].Text = "(^._.^) " },
 		"rest wrong mood":     func(c *catalogFile) { c.Animations[6].Frames[0].Text = "(^-_-^) " },
 		"wide glyph":          func(c *catalogFile) { c.Animations[0].Frames[0].Text = "中^.⩊.^) " },
 		"peek loop":           func(c *catalogFile) { c.Animations[7].Playback = "loop" },
@@ -151,7 +171,7 @@ func TestFrameConcurrentReadsAndLargeElapsed(t *testing.T) {
 		wg.Go(func() {
 			for range 20 {
 				text, next := Frame("working", time.Duration(1<<63-1), false, false)
-				if uniseg.StringWidth(text) != 8 || next <= 0 || next > 2*time.Second {
+				if uniseg.StringWidth(text) != 9 || next <= 0 || next > 2*time.Second {
 					t.Errorf("unbounded/invalid playback: %q %v", text, next)
 				}
 			}

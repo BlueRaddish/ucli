@@ -19,7 +19,7 @@ func TestMascotDeadlineAdvancesWithoutInputOrDraftMutation(t *testing.T) {
 	_ = u.notice(terminalNotice{Text: "Ready", Kind: toneInfo})
 	model, command := program.model.Update(terminalActivityMsg{ID: "wave"})
 	before := model.(terminalModel)
-	if command == nil || before.mascot.frame != "(^.⩊.^) " {
+	if command == nil || before.mascot.frame != "(^.⩊ .^) " {
 		t.Fatal("welcome did not schedule its first real frame deadline")
 	}
 	result := make(chan tea.Msg, 1)
@@ -101,7 +101,7 @@ func TestMascotModesAndSettledSuccess(t *testing.T) {
 	}
 	model, command = m.Update(mascotTickMsg{m.mascot.generation, m.mascot.started.Add(10 * time.Second)})
 	m = model.(terminalModel)
-	if command != nil || m.mascot.frame != "(^~⩊~^) " {
+	if command != nil || m.mascot.frame != "(^~⩊ ~^) " {
 		t.Fatal("one-shot completion did not settle without another tick")
 	}
 	model, command = m.Update(terminalNoticeMsg{Text: "Draft saved", Kind: toneSuccess})
@@ -122,6 +122,11 @@ func TestMascotNoticePreservesLabelsAndRecoverySpace(t *testing.T) {
 	}
 	if m.mascotNotice(20).Text != noticeLine(m.shell.notice).Text {
 		t.Fatal("artwork displaced status in a narrow terminal")
+	}
+	plain := noticeLine(m.shell.notice).Text
+	width := cellWidth(plain) + cellWidth(m.mascot.frame) + 2
+	if m.mascotNotice(width).Text == plain || m.mascotNotice(width-1).Text != plain {
+		t.Fatal("notice did not budget the measured mascot and separator")
 	}
 	m.shell.notice = terminalNotice{Text: "Inspect the saved task", Kind: toneError}
 	if m.mascotNotice(80).Text != "[Error] Inspect the saved task" {
