@@ -51,6 +51,30 @@ works. A browser mockup's clickable controls do not establish terminal mouse or
 copy behavior. Keep every core action available by keyboard. `NO_COLOR` retains
 the same geometry and role labels; reduced motion changes no logical state.
 
+## Model and permission selection - October 28
+
+`/models` narrows choices through CLI, model, then effort. Each layer names its
+scope and keeps the current choice visible. Cached runtime/model metadata supplies
+the lists; browsing must not run a native CLI, refresh authentication, or submit a
+prompt. Auto remains available. An explicit model offers its advertised effort
+levels, with honest handling of fixed or unknown capabilities.
+
+Model and effort are tentative until the final choice. Commit both together,
+preserving the account, permission, and unsent composition. Escape/Back returns
+one layer; abandoning the root leaves all pins unchanged. In the rich terminal,
+returning to a layer restores its query and focused row. Keep `/effort` available
+as a direct action for repeated changes.
+
+The permission picker offers modes the current application path can admit.
+Native routes currently implement read-only and sandbox (full local access);
+the local demonstration implements read-only. Stored `workspace-write` and
+`unrestricted` vocabulary does not establish native support. Restored unsupported
+choices require an explicit supported selection before sending; cancellation
+preserves the draft and old choice. A rich send with an unsupported restored pin
+opens that picker and returns to the saved composition; a later Enter sends.
+Never silently promote a permission or
+weaken adapter checks to clear a routing error.
+
 ## Layout budget
 
 The existing shell uses three header rows at ordinary sizes. The baseline is one

@@ -329,6 +329,32 @@ reconciliation is unavailable. The next protocol work is specified in
 [the development priorities](next-development.md); use offline event fixtures
 before another real request.
 
+## Mascot spacing, model drilldown and permission recovery - October 28
+
+Use the existing Go route for `./assets/mascot`, `./internal/app` and
+`./internal/cli`. The mascot checks must cover all 38 rendered frames and ASCII
+fallbacks in nine cells, a real blank immediately after every U+2A4A mouth,
+unchanged playback timing, and the notice's measured-width cutoff. The source
+catalog remains eight cells; `tools/check_cat_animations.py --self-test` checks
+that separate authoring boundary. Neither width assertions nor ANSI emulation
+prove visible ink containment or font coverage on a physical terminal.
+
+Model-picker checks must exercise CLI/model/effort scoping, advertised efforts,
+Back/Escape with remembered rich query/focus, cancellation without partial pins,
+one final draft CAS (including empty composition), conflict recovery, and no
+retargeting of an already accepted attempt. Cached browsing starts no native
+process or inference. Permission checks reproduce restored unsupported pins,
+refuse them before native refresh/dispatch, preserve draft/selection on cancel
+or conflict, and persist an explicit supported choice without sending a prompt.
+
+After sources are frozen and built, run the complete packaged ConPTY family
+using the setup above. Drive the three picker layers, return to composition,
+and verify persisted selections and draft retention. Keep unavailable-provider
+details reachable. Rerun the separate rich timing route after its navigation
+sequence changes. A bounded real native request, when authorized, remains a
+separate check using the exact verified binary, a disposable QA task, an existing
+reviewed account reference, and no retry of unknown work.
+
 ## Evidence and publication
 
 Store local receipts in ignored `.build` directories. Review command output before
