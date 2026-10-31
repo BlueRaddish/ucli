@@ -356,6 +356,13 @@ func startNativeConPTYOptions(t *testing.T, binary, home, cwd string, noWindow b
 
 func startConPTYMode(t *testing.T, binary, home, cwd string, noWindow, demo bool, options ...string) *pseudoTerminal {
 	t.Helper()
+	return startConPTYInvocation(t, binary, home, cwd, noWindow, demo, true, options...)
+}
+
+// Offline commands use the real process directory without an interactive --cwd
+// flag. Keep their command-line contract separate from chat fixtures.
+func startConPTYInvocation(t *testing.T, binary, home, cwd string, noWindow, demo, passCWD bool, options ...string) *pseudoTerminal {
+	t.Helper()
 	p := &pseudoTerminal{changed: make(chan struct{}, 1), drained: make(chan struct{}), sent: make(map[int]time.Time)}
 	t.Cleanup(func() { p.close(t) })
 	var inputRead, inputWrite, outputRead, outputWrite windows.Handle
@@ -427,7 +434,10 @@ func startConPTYMode(t *testing.T, binary, home, cwd string, noWindow, demo bool
 	if err != nil {
 		t.Fatal(err)
 	}
-	arguments := []string{binary, "--home", home, "--cwd", cwd}
+	arguments := []string{binary, "--home", home}
+	if passCWD {
+		arguments = append(arguments, "--cwd", cwd)
+	}
 	if demo {
 		arguments = append(arguments, "--demo")
 	}

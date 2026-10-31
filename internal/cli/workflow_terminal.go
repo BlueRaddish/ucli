@@ -209,6 +209,13 @@ func inspectWorkflowTerminal(ctx context.Context, terminal pickerTerminal, spec 
 		matches := v.matches()
 		position := v.focusPosition(matches)
 		switch event.kind {
+		case keyChoice:
+			for _, index := range matches {
+				if v.spec.Steps[index].ID == event.text {
+					v.focus, v.detail, v.scroll, v.message = index, true, 0, ""
+					break
+				}
+			}
 		case keyEnter, keyRight:
 			if position >= 0 {
 				v.detail = true
@@ -278,6 +285,7 @@ func (v *workflowView) frame(width, height int) terminalFrame {
 		return view
 	}
 	add(title, false, true)
+	view.Lines[0].Bold, view.Lines[0].Dim, view.Lines[0].Tone = true, false, toneInfo
 	matches := v.matches()
 	position := v.focusPosition(matches)
 	if v.detail {
@@ -346,6 +354,13 @@ func (v *workflowView) frame(width, height int) terminalFrame {
 		} else {
 			add(left, focused, false)
 		}
+		if !v.detail && v.top+row < len(matches) {
+			end := cellWidth(left)
+			if wide {
+				end = leftWidth
+			}
+			view.Lines[len(view.Lines)-1].Spans = []terminalSpan{{Start: 0, End: end, Action: "choice:" + v.spec.Steps[matches[v.top+row]].ID}}
+		}
 	}
 	footer := "Enter open · Esc close · Up/Down select · Type filter"
 	if v.detail {
@@ -361,6 +376,9 @@ func (v *workflowView) frame(width, height int) terminalFrame {
 		footer = "Ctrl+U clear · Esc close · Enter open"
 	}
 	add(footer, false, true)
+	if v.detail {
+		view.Lines[len(view.Lines)-1].Action = "escape"
+	}
 	return view
 }
 
