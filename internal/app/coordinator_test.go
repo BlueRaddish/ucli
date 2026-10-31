@@ -280,16 +280,24 @@ func TestExecutionCloseRetainsStoreUntilUnresponsiveWorkerJoins(t *testing.T) {
 func TestExecutionBurstFollowAndCursorValidation(t *testing.T) {
 	a, cwd := fixtureApp(t)
 	release := make(chan struct{})
+	var emitted atomic.Int32
 	e := startFixture(t, a, cwd, "burst", func(ctx context.Context, _ adapters.Request, emit func(string) error) (adapters.Outcome, error) {
-		<-release
+		select {
+		case <-release:
+		case <-ctx.Done():
+			return adapters.Outcome{State: "interrupted"}, ctx.Err()
+		}
 		for i := 0; i < 251; i++ {
 			if err := emit(fmt.Sprintf("%d,", i)); err != nil {
 				return adapters.Outcome{State: "failed"}, err
 			}
+			emitted.Add(1)
 		}
 		return adapters.Outcome{State: "complete"}, nil
 	})
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	// This is a delivery/cursor test, not a latency benchmark. Allow bounded
+	// time for 251 real durable writes plus concurrent reads on slower CI disks.
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	var events []core.Event
 	err := e.Follow(ctx, 0, func(event core.Event) error {
@@ -300,16 +308,26 @@ func TestExecutionBurstFollowAndCursorValidation(t *testing.T) {
 		return nil
 	})
 	if err != nil || len(events) != 254 || events[len(events)-1].Type != "result_persisted" {
-		t.Fatal("burst or completion lost", len(events), err)
+		t.Fatalf("burst or completion lost: observed=%d emitted=%d err=%v", len(events), emitted.Load(), err)
 	}
 	for i, event := range events {
 		if event.Sequence != int64(i)+1 {
 			t.Fatal("event gap", event)
 		}
+		if i >= 1 && i <= 251 && (event.Type != "message_delta" || event.Text != fmt.Sprintf("%d,", i-1)) {
+			t.Fatal("burst changed or omitted a message", event)
+		}
 	}
-	for _, cursor := range []int64{-1, 9999} {
-		if err := e.Follow(ctx, cursor, nil); err == nil {
-			t.Fatal("invalid cursor accepted", cursor)
+	cursorCtx, cancelCursor := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelCursor()
+	for _, cursor := range []struct {
+		sequence int64
+		code     string
+		exit     int
+	}{{-1, "invalid_input", 2}, {9999, "event_cursor_invalid", 9}} {
+		var problem *core.Error
+		if err := e.Follow(cursorCtx, cursor.sequence, nil); !errors.As(err, &problem) || problem.Code != cursor.code || problem.Exit != cursor.exit {
+			t.Fatalf("wrong invalid-cursor outcome for %d: %v", cursor.sequence, err)
 		}
 	}
 }
