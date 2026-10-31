@@ -75,14 +75,14 @@ func connectionCommand(ctx context.Context, p invocation, in io.Reader, o *outpu
 			s.input = newLineInput(terminalInput(in))
 			defer close(s.input.stop)
 		}
-		p.id, err = s.chooseLoginProvider(ctx)
+		p.id, err = s.chooseLoginProvider(ctx, svc)
 		if err != nil {
 			return o.problem(connectionProblem(err))
 		}
 		if p.id == "" {
 			return 0
 		}
-		action, err := s.chooseConnectionAction(ctx, p.id)
+		action, err := s.chooseConnectionAction(ctx, p.id, svc)
 		if err != nil {
 			return o.problem(connectionProblem(err))
 		}
@@ -259,24 +259,8 @@ func showConnection(item connections.Connection, o *output) error {
 	if o.json {
 		return o.data("connection", item)
 	}
-	next := "Open /models to choose a supported model. Identity and runtime compatibility are checked again before sending."
-	switch {
-	case item.Provider == "agy":
-		next = fmt.Sprintf("%d native model names cached. AGY execution and sign-in verification are not supported in UCLI; use Antigravity itself to run them.", len(item.Models))
-	case item.Provider == "github":
-		next = "This connects your local GitHub CLI identity only. It supplies no AI models and does not create a hosted UCLI account."
-	case item.AuthState == "signed-out":
-		next = "Your native account is signed out. Choose Sign in in /login to complete the provider's browser/device steps."
-	case item.AuthState == "identity-changed":
-		next = "The native account changed. This connection is blocked; explicitly unlink and reconnect the intended account."
-	case item.AuthState != "authenticated":
-		next = "Sign-in was not confirmed. Check the native client, then refresh here; another login may not be needed."
-	}
-	return o.text(fmt.Sprintf("%s | %s | %s\n%s\nConnection reference: %s (native credentials stay with the provider).\n", item.Label, providerName(item.Provider), authenticationLabel(item.AuthState), next, item.ID))
-}
-
-func (s *session) chooseLoginProvider(ctx context.Context) (string, error) {
-	return s.choose(ctx, "Connect an account — your draft is kept", []choice{{"codex", "Codex - use your ChatGPT sign-in in the Codex CLI"}, {"claude", "Claude Code - use your Claude sign-in; reviewed CLI version required"}, {"github", "GitHub - local GitHub CLI identity, no AI models"}, {"agy", "Antigravity (AGY) - inspect model names; UCLI execution unavailable"}})
+	view := presentConnection(item)
+	return o.text(fmt.Sprintf("%s | %s\nStatus: %s\nNext: %s\nConnection reference: %s\n", providerName(item.Provider), inlineText(item.Label), view.status, view.next, item.ID))
 }
 
 func providerName(id string) string {
@@ -294,35 +278,24 @@ func providerName(id string) string {
 	}
 }
 
-func (s *session) chooseConnectionAction(ctx context.Context, identifier string) (string, error) {
-	name := providerName(nativeProvider(identifier))
-	rows := []choice{{"check", "Use the account already signed in on this computer - check and link only"}}
-	if nativeProvider(identifier) == "agy" {
-		rows = []choice{{"check", "Inspect Antigravity model names - no UCLI task execution or sign-in"}}
-	} else {
-		rows = append(rows, choice{"login", "Sign in through " + name + " - browser/device steps if needed"})
-	}
-	return s.choose(ctx, name+" - choose what to do; your draft is kept", rows)
-}
-
 func (s *session) connectionAction(ctx context.Context, verb, identifier string) error {
 	if verb == "/logout" && identifier == "" {
 		return usageError("use /logout CONNECTION_ID to unlink one UCLI connection")
-	}
-	if identifier == "" {
-		var err error
-		identifier, err = s.chooseLoginProvider(ctx)
-		if err != nil || identifier == "" {
-			return err
-		}
 	}
 	svc, err := connections.New(s.app.Home)
 	if err != nil {
 		return connectionProblem(err)
 	}
+	if identifier == "" {
+		var err error
+		identifier, err = s.chooseLoginProvider(ctx, svc)
+		if err != nil || identifier == "" {
+			return err
+		}
+	}
 	p := invocation{command: strings.TrimPrefix(verb, "/"), id: identifier, home: s.app.Home}
 	if verb == "/login" {
-		action, err := s.chooseConnectionAction(ctx, identifier)
+		action, err := s.chooseConnectionAction(ctx, identifier, svc)
 		if err != nil || action == "" {
 			return err
 		}
