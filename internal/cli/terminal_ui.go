@@ -42,6 +42,8 @@ const (
 	keyPageDown
 	keyLatestPrompt
 	keyLatestOutput
+	keyAction
+	keyChoice
 )
 
 type keyEvent struct {
@@ -52,8 +54,11 @@ type keyEvent struct {
 type terminalLine struct {
 	Text         string
 	Focused, Dim bool
+	Bold         bool
 	Band         bool
 	Tone         terminalTone
+	Action       string
+	Spans        []terminalSpan
 }
 
 type terminalFrame struct {
@@ -102,6 +107,10 @@ type terminalModel struct {
 	mascot              terminalMascot
 	interruptUntil      time.Time
 	interruptGeneration uint64
+	jobs                terminalJobs
+	jobInspector        bool
+	jobScroll           int
+	mouseDisabled       bool
 }
 
 func (m terminalModel) Init() tea.Cmd {
@@ -115,6 +124,27 @@ func (m terminalModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var event keyEvent
 	emit := false
 	switch value := msg.(type) {
+	case terminalOpenJobMsg:
+		m.activate("job:open")
+	case terminalJobMsg:
+		m.jobs.update(value)
+		if job, ok := m.jobs.selected(m.shell.chrome.TaskID); ok && job.TaskID == value.TaskID {
+			if value.Phase == jobSaved && value.State == "complete" && job.Phase == jobSaved && job.AttemptID == value.AttemptID {
+				return m, m.startMascot(terminalActivityMsg{ID: "done"}, time.Now())
+			}
+			if job.Phase >= jobPreparing && job.Phase <= jobReceiving {
+				return m, m.startMascot(terminalActivityMsg{ID: "working"}, time.Now())
+			}
+			m.stopMascot()
+		}
+	case tea.MouseClickMsg:
+		if m.shell.enabled {
+			m.click(value)
+		}
+	case tea.MouseWheelMsg:
+		if m.shell.enabled {
+			m.wheel(value)
+		}
 	case interruptConfirmExpiredMsg:
 		if value.Generation == m.interruptGeneration {
 			m.clearInterruptConfirmation()
@@ -186,6 +216,9 @@ func (m terminalModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.shell.notice = terminalNotice(value)
 	case terminalMessageMsg:
 		m.shell.message(value)
+		if value.Role == transcriptAssistant && value.Text != "" && value.TaskID != "" && value.AttemptID != "" {
+			m.jobs.update(terminalJobMsg{TaskID: value.TaskID, AttemptID: value.AttemptID, Phase: jobReceiving})
+		}
 	case terminalTranscriptMsg:
 		m.shell.append(string(value))
 		m.fragment = ""
@@ -201,13 +234,31 @@ func (m terminalModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		event, emit = keyEvent{kind: keyResize}, true
 	case tea.PasteMsg:
 		m.clearInterruptConfirmation()
+		if m.jobInspector {
+			return m, nil // A read-only overlay cannot paste into its hidden draft.
+		}
 		if len(value.Content) > core.MaxInputBytes || !utf8.ValidString(value.Content) || strings.ContainsRune(value.Content, 0) {
 			m.ui.fail(core.Problem("invalid_input", "Pasted input must be valid UTF-8 without NUL, at most 1 MiB.", 2))
 			break
 		}
 		event, emit = keyEvent{kind: keyPaste, text: value.Content}, true
 	case tea.KeyPressMsg:
+		if value.Keystroke() == "f2" && m.shell.enabled {
+			m.mouseDisabled = !m.mouseDisabled
+			return m, nil
+		}
+		if value.Keystroke() == "f3" && m.shell.enabled {
+			if m.jobInspector {
+				m.jobInspector = false
+			} else {
+				m.activate("job:open")
+			}
+			return m, nil
+		}
 		event, emit = terminalKey(value)
+		if emit && m.inspectKey(event) {
+			return m, nil
+		}
 		if emit && event.kind != keyInterrupt {
 			m.clearInterruptConfirmation()
 		}
@@ -264,6 +315,8 @@ func terminalKey(value tea.KeyPressMsg) (keyEvent, bool) {
 		return keyEvent{kind: keyTab}, true
 	case "shift+tab":
 		return keyEvent{kind: keyBackTab}, true
+	case "f1":
+		return keyEvent{kind: keyAction, text: "/shortcuts"}, true
 	case "ctrl+d", "ctrl+z":
 		return keyEvent{kind: keyEOF}, true
 	case "ctrl+c":
@@ -327,7 +380,7 @@ func newTerminalUI(in io.Reader, out io.Writer, interrupt context.CancelFunc, co
 	if len(options) > 0 {
 		configured = options[0]
 	}
-	program := tea.NewProgram(terminalModel{ui: u, color: color, options: configured, frame: terminalFrame{CursorRow: -1}}, tea.WithContext(ctx), tea.WithInput(in), tea.WithOutput(out), tea.WithoutSignalHandler(), tea.WithFPS(60))
+	program := tea.NewProgram(terminalModel{ui: u, color: color, options: configured, mouseDisabled: configured.NoMouse, frame: terminalFrame{CursorRow: -1}}, tea.WithContext(ctx), tea.WithInput(in), tea.WithOutput(out), tea.WithoutSignalHandler(), tea.WithFPS(60))
 	u.program = program
 	go func() {
 		_, err := program.Run()

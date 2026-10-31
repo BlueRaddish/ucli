@@ -103,10 +103,10 @@ func TestCompletionComposerPartialKeysOnlyComplete(t *testing.T) {
 				t.Fatalf("partial command executed or lost its completed text: %+v", result)
 			}
 			hint := completionFooter(t, completionFrameFor(t, frames, "/mo", true))
-			if !strings.Contains(hint, "Enter/Tab complete") || strings.Contains(hint, "Tab actions") || strings.Contains(hint, "Enter save") {
+			if !strings.Contains(hint, "Enter/Tab complete") || strings.Contains(hint, "? shortcuts") || strings.Contains(hint, "Enter save") {
 				t.Fatalf("partial-command footer describes the wrong key action: %q", hint)
 			}
-			if !strings.Contains(completionFooter(t, completionFrameFor(t, frames, "/models ", false)), "Tab actions") {
+			if !strings.Contains(completionFooter(t, completionFrameFor(t, frames, "/models ", false)), "? shortcuts") {
 				t.Fatal("normal editor hint did not return after completion")
 			}
 		})

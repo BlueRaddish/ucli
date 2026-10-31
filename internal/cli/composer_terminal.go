@@ -86,6 +86,15 @@ func (s *session) readTerminalLineWithAction(ctx context.Context, action func(co
 				}
 			}
 		}
+		// These shortcuts are available at an empty editor only. Left still
+		// moves a real draft's cursor; pasted or ongoing question text is literal.
+		if editor.text == "" && !literal {
+			if event.kind == keyLeft {
+				event = keyEvent{kind: keyAction, text: "/models"}
+			} else if event.kind == keyText && event.text == "?" {
+				event = keyEvent{kind: keyAction, text: "/shortcuts"}
+			}
+		}
 		switch event.kind {
 		case keyEnter:
 			_ = s.terminal.paintComposer(terminalFrame{Lines: []terminalLine{{Text: "> "}, {Text: "Working · Ctrl+C twice to interrupt and exit", Dim: true}}, CursorRow: -1})
@@ -95,13 +104,24 @@ func (s *session) readTerminalLineWithAction(ctx context.Context, action func(co
 			return line{text: editor.text, literal: true, replace: true, err: io.EOF}
 		case keyEscape:
 			// Esc leaves text intact. Discarding a composition is explicit Ctrl+U.
-		case keyTab:
-			actions := []choice{{"/models", "Models - choose an AI model or see setup steps"}, {"/accounts", "Accounts - choose a connected AI account"}, {"/login", "Connect account - use an existing login or sign in"}, {"/sessions", "Sessions - watch progress and read results"}, {"/stop", "Stop current task - request stop without closing UCLI"}, {"/tasks", "Switch session - open earlier work for a follow-up"}, {"/new", "New session - start fresh"}, {"/effort", "Effort - choose reasoning intent"}, {"/permission", "Permission - choose what the agent may access"}, {"/workflow", "Workflow - inspect a plan and its steps"}, {"/voice", "Voice - dictate into this prompt"}, {"/result", "Results - read saved responses"}, {"/explain", "Explain - preview the next route"}, {"/help", "Help - show every action"}}
-			value, err := s.chooseTerminal(ctx, "Actions — your composition is kept", actions, "")
-			if err != nil {
-				return line{text: editor.text, literal: true, replace: true, err: err}
+		case keyTab, keyAction:
+			value := event.text
+			if event.kind == keyTab || value == "/shortcuts" {
+				title := "Shortcuts — your composition is kept"
+				if event.kind == keyTab {
+					title = "Actions — your composition is kept"
+				}
+				var err error
+				value, err = s.chooseTerminal(ctx, title, composerActions(), "")
+				if err != nil {
+					return line{text: editor.text, literal: true, replace: true, err: err}
+				}
 			}
 			if value != "" {
+				if value == "job:open" {
+					s.terminal.program.Send(terminalOpenJobMsg{})
+					continue
+				}
 				if value == "/voice" {
 					text, err := s.voiceText(ctx, "")
 					if err == nil {
@@ -171,17 +191,26 @@ func (s *session) composerFrame(editor textEditor) terminalFrame {
 }
 
 func composerHint(width int) string {
-	for _, text := range []string{
-		"Enter send · Alt+Enter newline · / commands · Tab actions · Ctrl+C twice exit",
-		"Enter send · Alt+Enter newline · Tab actions",
-		"Enter send · Tab actions",
-		"Tab actions",
-	} {
-		if cellWidth(text) < width {
-			return text
-		}
+	return clipCells(shortcutsFooter(width).Text, max(1, width-1))
+}
+
+func composerActions() []choice {
+	return []choice{
+		{"/models", "Agents / Models - choose a CLI, model and effort; Left at empty input"},
+		{"/sessions", "Sessions - watch progress and read saved responses"},
+		{"job:open", "Job details - current activity and response; F3"},
+		{"/login", "Connect account - use an existing sign-in or log in"},
+		{"/accounts", "Accounts - choose a connected AI account"},
+		{"/tasks", "Switch session - open earlier work for a follow-up"},
+		{"/new", "New session - keep earlier work and start fresh"},
+		{"/stop", "Stop current task - request stop without closing UCLI"},
+		{"/permission", "Permission - choose what the agent may access"},
+		{"/effort", "Effort - choose reasoning intent"},
+		{"/workflow", "Workflow - inspect a plan and its steps"},
+		{"/voice", "Voice - dictate into this prompt"},
+		{"/result", "Results - read saved responses"},
+		{"/help", "All shortcuts - Enter sends; Alt+Enter newline; Shift+drag copies; F2 mouse on/off; / commands"},
 	}
-	return ""
 }
 
 func editorFrame(editor textEditor, width, maxRows int) ([]terminalLine, int, int) {

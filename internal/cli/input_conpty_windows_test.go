@@ -22,7 +22,7 @@ func TestPackagedConPTYRejectLossyPaste(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			home, cwd := t.TempDir(), t.TempDir()
 			p := startConPTYOptions(t, binary, home, cwd, false)
-			p.await(t, 0, "Tab actions")
+			p.await(t, 0, "? shortcuts")
 			mark := p.send(t, "\x1b[200~"+test.input+"\x1b[201~")
 			p.await(t, mark, test.diagnostic)
 			if code := p.wait(t); code != 2 {

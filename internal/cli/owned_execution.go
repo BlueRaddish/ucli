@@ -65,10 +65,17 @@ type ownedExecution interface {
 }
 
 func (s *session) startInteractiveExecution(ctx context.Context, submitted string) error {
+	pending := terminalJobMsg{Phase: jobPreparing, Model: s.selection.WithDefaults().Model, Effort: s.selection.WithDefaults().Effort, Permission: s.selection.WithDefaults().Permission}
+	if s.task != nil {
+		pending.TaskID, pending.Title = s.task.ID, s.task.Title
+	}
+	_ = s.out.job(pending)
 	_ = s.out.notice("Preparing your prompt | Ctrl+C twice to interrupt and exit", toneInfo)
 	_ = s.out.activity("working", false)
 	execution, err := s.app.Start(ctx, s.options())
 	if err != nil {
+		pending.Phase, pending.Detail = jobBlocked, problemFor(err).Message
+		_ = s.out.job(pending)
 		_ = s.out.activity("", true)
 		if s.markConflict(err, submitted) {
 			return err
@@ -79,7 +86,7 @@ func (s *session) startInteractiveExecution(ctx context.Context, submitted strin
 		return err
 	}
 	accepted := execution.Accepted()
-	_ = s.out.activity("", true)
+	_ = s.out.job(terminalJobMsg{TaskID: accepted.TaskID, AttemptID: accepted.ID, Model: accepted.Effective.Model, Effort: accepted.Effective.Effort, Permission: accepted.Effective.Permission, Phase: jobAccepted, At: accepted.StartedAt, Bind: true})
 	_ = s.out.notice("Working in UCLI | /stop requests stop | /sessions | keep typing", toneInfo)
 	s.trackExecution(execution, accepted)
 	if err := s.refresh(ctx); err != nil {
@@ -120,6 +127,7 @@ func (s *session) trackExecution(execution ownedExecution, accepted core.Attempt
 		})
 		if err != nil {
 			if s.observeCtx.Err() == nil {
+				_ = s.out.job(terminalJobMsg{TaskID: accepted.TaskID, AttemptID: accepted.ID, Phase: jobViewPaused, Detail: "Live observation stopped. The owned task was not canceled."})
 				_ = s.out.notice("Live view stopped | the task remains saved in /sessions", toneWarning)
 			}
 			return

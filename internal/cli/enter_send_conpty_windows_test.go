@@ -26,7 +26,7 @@ func TestPackagedConPTYEnterSendAndInterruptGuard(t *testing.T) {
 	defer a.Close()
 	ctx := context.Background()
 	p := startConPTYOptions(t, binary, home, cwd, false, "--no-motion", "--ascii")
-	p.awaitVisible(t, 0, "Enter send")
+	p.awaitVisible(t, 0, "? shortcuts")
 	mark := p.send(t, "One Enter creates one attempt\r")
 	p.awaitVisible(t, mark, "Ready for your next prompt")
 	tasks, err := a.Tasks(ctx)
@@ -72,7 +72,7 @@ func TestPackagedConPTYEnterSendAndInterruptGuard(t *testing.T) {
 	mark = p.send(t, "\x1b")
 	p.awaitVisible(t, mark, "Sessions")
 	mark = p.send(t, "\x1b")
-	p.awaitVisible(t, mark, "Tab actions")
+	p.awaitVisible(t, mark, "? shortcuts")
 	p.awaitVisible(t, mark, partial)
 	assertAttempts("One Enter creates one attempt", multiline)
 

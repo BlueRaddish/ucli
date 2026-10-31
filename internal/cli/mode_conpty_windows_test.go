@@ -45,10 +45,10 @@ func TestConPTYConsoleModeRestoration(t *testing.T) {
 	}
 	home, cwd := t.TempDir(), t.TempDir()
 	p := startConPTYOptions(t, binary, home, cwd, false)
-	p.await(t, 0, "Tab actions")
+	p.await(t, 0, "? shortcuts")
 	mark := p.send(t, "/exit\r")
 	p.await(t, mark, "Console mode roundtrip 1 passed")
-	p.await(t, mark, "Tab actions")
+	p.await(t, mark, "? shortcuts")
 	mark = p.send(t, "Second run preserved every key\r")
 	p.await(t, mark, "Ready for your next prompt")
 	mark = p.send(t, "/exit\r")

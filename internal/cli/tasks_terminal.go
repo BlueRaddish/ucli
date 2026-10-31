@@ -207,7 +207,7 @@ func taskPickerFrame(picker pickerState, editor textEditor, width, height int) t
 		if focused {
 			prefix = "> "
 		}
-		view.Lines = append(view.Lines, terminalLine{Text: prefix + option.Label, Focused: focused})
+		view.Lines = append(view.Lines, terminalLine{Text: prefix + option.Label, Focused: focused, Action: "choice:" + option.Value})
 	}
 	view.Lines = append(view.Lines, footer)
 	return view
@@ -320,9 +320,20 @@ func pickTaskTerminal(ctx context.Context, terminal taskPickerTerminal, source t
 			if !blocked {
 				position.focus = picker.focused
 			}
-		case keyEnter:
+		case keyEnter, keyChoice:
 			if blocked || !pickerViewportUsable(width, height) {
 				continue
+			}
+			if event.kind == keyChoice {
+				valid := false
+				for _, index := range picker.matches() {
+					if picker.options[index].Value == event.text {
+						picker.focused, valid = event.text, true
+					}
+				}
+				if !valid {
+					continue
+				}
 			}
 			switch picker.focused {
 			case taskPickerOlder:

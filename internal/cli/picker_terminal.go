@@ -66,6 +66,16 @@ func pickTerminalRemember(ctx context.Context, terminal pickerTerminal, title st
 		}
 		var action pickerAction
 		switch event.kind {
+		case keyChoice:
+			if !pickerViewportUsable(width, height) {
+				continue
+			}
+			for _, index := range picker.matches() {
+				if picker.options[index].Value == event.text {
+					return event.text, nil
+				}
+			}
+			continue
 		case keyEnter:
 			if !pickerViewportUsable(width, height) {
 				continue
@@ -139,8 +149,13 @@ func pickerTerminalFrame(picker pickerState, editor textEditor, width, height in
 	appendLine(frame.Lines[frame.SearchRow])
 	count := max(1, min(rows, len(picker.matches()))) // Empty results have a recovery row.
 	optionsEnd := frame.SearchRow + 1 + count
-	for _, line := range frame.Lines[frame.SearchRow+1 : optionsEnd] {
+	matches := picker.matches()
+	top := pickerWindow(picker.top, picker.focusIndex(matches), len(matches), rows)
+	for position, line := range frame.Lines[frame.SearchRow+1 : optionsEnd] {
 		appendLine(line)
+		if top+position < len(matches) {
+			view.Lines[len(view.Lines)-1].Action = "choice:" + picker.options[matches[top+position]].Value
+		}
 	}
 	if !compact {
 		// Prefer the focused candidate's detail over a page count when only one

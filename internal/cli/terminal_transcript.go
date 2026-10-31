@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"strings"
 	"unicode/utf8"
-
-	"github.com/rivo/uniseg"
 )
 
 // These roles belong to the display cache, never to parsed provider prose.
@@ -29,7 +27,7 @@ type transcriptRecord struct {
 
 type transcriptAnchor struct {
 	ID     uint64
-	Offset int // -1 identifies the role heading; other offsets are source bytes
+	Offset int // -2 is block spacing; -1 is the heading; nonnegative offsets are source bytes
 }
 
 type transcriptRow struct {
@@ -172,9 +170,13 @@ func (s terminalShell) latestPrompt() (transcriptRecord, bool) {
 // Wrapping carries source byte anchors, so appending output or changing terminal
 // width does not turn the reader's current paragraph into a tail-relative offset.
 // Markdown/code stay literal: indentation, fences, and newlines are not rewritten.
+// Prose wraps at word boundaries; display gutters never enter stored content.
 func appendRecordRows(record transcriptRecord, width int, rows *transcriptRowsBuilder) {
 	width = max(1, width-1)
-	prefix := ""
+	prefix := "  "
+	if width < 4 {
+		prefix = "" // retain a content cell before decorative indentation
+	}
 	band := record.Role == transcriptPrompt
 	if record.Role != transcriptSystem {
 		label := record.Label
@@ -184,44 +186,48 @@ func appendRecordRows(record transcriptRecord, width int, rows *transcriptRowsBu
 				label = "Your prompt"
 			}
 		}
+		captionPrefix := ""
 		if band {
-			prefix = "  "
+			captionPrefix = prefix
 		}
-		rows.add(transcriptRow{terminalLine{Text: prefix + label, Band: band, Dim: !band}, transcriptAnchor{record.ID, -1}})
+		caption := terminalLine{Text: captionPrefix + label, Band: band, Bold: true}
+		if record.Role == transcriptAssistant && validTranscriptScopeID(record.TaskID) && validTranscriptScopeID(record.AttemptID) {
+			caption.Action = jobCaptionAction(record.TaskID, record.AttemptID)
+		}
+		rows.add(transcriptRow{caption, transcriptAnchor{record.ID, -1}})
 	}
 	available := max(1, width-cellWidth(prefix))
 	offset := record.Base
+	var format transcriptFormat
 	for _, source := range strings.Split(record.Text, "\n") {
-		start, used := offset, 0
-		var line strings.Builder
-		flush := func() {
+		literal, heading, hanging := format.line(source, record.Base > 0)
+		if record.Role != transcriptAssistant {
+			heading, hanging = false, 0
+		}
+		wrapTranscriptSource(source, offset, available, hanging, literal, func(text string, start int, continued bool) {
 			marker := prefix
-			if band && start == 0 {
+			if band && start == 0 && width >= 3 {
 				marker = "> "
 			}
-			rows.add(transcriptRow{terminalLine{Text: marker + line.String(), Band: band}, transcriptAnchor{record.ID, start}})
-			line.Reset()
-			used = 0
-		}
-		g := uniseg.NewGraphemes(source)
-		for g.Next() {
-			position, _ := g.Positions()
-			part, cells := g.Str(), g.Width()
-			if part == "\t" {
-				part, cells = "    ", 4
+			if continued && hanging > 0 {
+				marker += strings.Repeat(" ", min(hanging, max(0, available-1)))
 			}
-			if used+cells > available && line.Len() > 0 {
-				flush()
-				start = offset + position
-			}
-			if cells > available {
-				part, cells = "?", 1
-			}
-			line.WriteString(part)
-			used += cells
-		}
-		flush()
+			rows.add(transcriptRow{terminalLine{Text: marker + text, Band: band, Bold: heading}, transcriptAnchor{record.ID, start}})
+		})
 		offset += len(source) + 1
+	}
+}
+
+func (b *transcriptRowsBuilder) separate(id uint64) {
+	if len(b.rows) == 0 {
+		return
+	}
+	last := len(b.rows) - 1
+	if b.dropped {
+		last = (b.head + len(b.rows) - 1) % len(b.rows)
+	}
+	if strings.TrimSpace(b.rows[last].Text) != "" {
+		b.add(transcriptRow{anchor: transcriptAnchor{id, -2}})
 	}
 }
 
@@ -230,11 +236,25 @@ func (s terminalShell) transcriptRows(fragment string, width int) []transcriptRo
 	if s.dropped {
 		all.add(omittedTranscriptRow())
 	}
-	for _, record := range s.transcript {
+	previous := transcriptSystem
+	first := true
+	appendRecord := func(record transcriptRecord) {
+		if !first && (record.Role != transcriptSystem || previous != transcriptSystem) {
+			all.separate(record.ID)
+		}
+		if record.Role == transcriptSystem && (first || previous != transcriptSystem) {
+			// Writer.complete emits separate system records for each real line.
+			// One visual caption groups those records without coalescing identities.
+			all.add(transcriptRow{terminalLine{Text: "UCLI", Bold: true}, transcriptAnchor{record.ID, -1}})
+		}
 		appendRecordRows(record, width, &all)
+		first, previous = false, record.Role
+	}
+	for _, record := range s.transcript {
+		appendRecord(record)
 	}
 	if fragment != "" {
-		appendRecordRows(transcriptRecord{ID: s.nextID + 1, Text: fragment}, width, &all)
+		appendRecord(transcriptRecord{ID: s.nextID + 1, Role: transcriptSystem, Text: fragment})
 	}
 	return all.finish()
 }
@@ -252,6 +272,9 @@ func anchorIndex(rows []transcriptRow, anchor transcriptAnchor) int {
 	best := -1
 	for i, row := range rows {
 		if row.anchor.ID == anchor.ID {
+			if anchor.Offset == -2 && row.anchor.Offset == -1 {
+				return i // an explicit source blank may replace our display separator
+			}
 			if anchor.Offset >= 0 && row.anchor.Offset < 0 {
 				continue
 			}
@@ -315,7 +338,7 @@ func (s terminalShell) history(fragment string, width, height int) []terminalLin
 		if width < 18 {
 			label = "Ctrl+Up prompt"
 		}
-		visible = append(visible, terminalLine{Text: label, Band: true})
+		visible = append(visible, terminalLine{Text: label, Band: true, Action: "prompt"})
 	}
 	for _, row := range w.rows[w.start:w.end] {
 		visible = append(visible, row.terminalLine)
@@ -331,7 +354,7 @@ func (s terminalShell) history(fragment string, width, height int) []terminalLin
 				label = "Paused · Ctrl+End latest"
 			}
 		}
-		visible = append(visible, terminalLine{Text: label, Dim: true})
+		visible = append(visible, terminalLine{Text: label, Dim: true, Action: "latest"})
 	}
 	return visible
 }

@@ -17,7 +17,7 @@ func TestPackagedConPTYRichComposer(t *testing.T) {
 	}
 	home, cwd := t.TempDir(), t.TempDir()
 	p := startConPTYOptions(t, binary, home, cwd, false)
-	p.awaitVisible(t, 0, "Tab actions")
+	p.awaitVisible(t, 0, "? shortcuts")
 	mark := p.send(t, "/effort\r")
 	p.awaitVisible(t, mark, "Choose effort")
 	mark = p.send(t, "medium")
@@ -33,7 +33,7 @@ func TestPackagedConPTYRichComposer(t *testing.T) {
 	mark = p.send(t, "\x1b")
 	p.awaitVisible(t, mark, "Choose a CLI")
 	mark = p.send(t, "\x1b")
-	p.awaitVisible(t, mark, "Tab actions")
+	p.awaitVisible(t, mark, "? shortcuts")
 	p.resize(t, 60, 20)
 	const pasted = "/exit\nLiteral paste 中 👩🏽‍💻 e\u0301"
 	mark = p.send(t, "\x1b[200~"+pasted+"\x1b[201~\r")

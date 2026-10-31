@@ -94,7 +94,7 @@ func TestPackagedConPTYSessionMonitorBurstAndRefresh(t *testing.T) {
 	mark = p.send(t, "\x1b")
 	p.awaitVisible(t, mark, "Search: Burst monitor")
 	mark = p.send(t, "\x1b")
-	p.awaitVisible(t, mark, "Tab actions")
+	p.awaitVisible(t, mark, "? shortcuts")
 	p.awaitVisible(t, mark, draft)
 	p.send(t, "\x04")
 	if code := p.wait(t); code != 0 {

@@ -62,7 +62,7 @@ func TestPackagedConPTYModelProviderDetails(t *testing.T) {
 		mark = p.send(t, "\x1b")
 		p.awaitVisible(t, mark, "Choose a CLI")
 		mark = p.send(t, "\x1b")
-		p.awaitVisible(t, mark, "Enter send")
+		p.awaitVisible(t, mark, "? shortcuts")
 		p.awaitVisible(t, mark, seed.Draft)
 	}
 	p.send(t, "\x04")

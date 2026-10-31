@@ -26,8 +26,8 @@ func TestPackagedConPTYTranscriptNavigation(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer a.Close()
-	p := startConPTYOptions(t, binary, home, cwd, false, "--no-color", "--no-motion")
-	p.awaitVisible(t, 0, "Enter send")
+	p := startConPTYOptions(t, binary, home, cwd, false, "--no-color", "--no-motion", "--no-mouse")
+	p.awaitVisible(t, 0, "? shortcuts")
 	prompt := "LATEST TASK 日本語\n"
 	for i := range 24 {
 		prompt += fmt.Sprintf("Source line %02d keeps its place.\n", i)
@@ -53,15 +53,15 @@ func TestPackagedConPTYTranscriptNavigation(t *testing.T) {
 	p.send(t, "\x1b[1;5A") // Ctrl+Up: latest prompt, not the first retained prompt.
 	awaitShellFrame(t, p, p.resizes, "transcript-latest-prompt", func(f shellCapturedFrame) bool {
 		return shellFramePrompt(f, 80, 24, "Ready", "> "+draft) &&
-			strings.Contains(f.Rows[3], "  Your prompt") &&
-			strings.Contains(f.Rows[4], "> LATEST TASK 日本語") &&
+			strings.Contains(f.Rows[4], "  Your prompt") &&
+			strings.Contains(f.Rows[5], "> LATEST TASK 日本語") &&
 			strings.Contains(strings.Join(f.Rows, "\n"), "Following paused")
 	})
 	p.resize(t, 60, 20)
 	awaitShellFrame(t, p, p.resizes, "transcript-anchor-resized", func(f shellCapturedFrame) bool {
 		return shellFramePrompt(f, 60, 20, "Ready", "> "+draft) &&
-			strings.Contains(f.Rows[3], "  Your prompt") &&
-			strings.Contains(f.Rows[4], "> LATEST TASK 日本語")
+			strings.Contains(f.Rows[4], "  Your prompt") &&
+			strings.Contains(f.Rows[5], "> LATEST TASK 日本語")
 	})
 	p.send(t, "\x1b[1;5F") // Ctrl+End independently resumes the live output tail.
 	awaitShellFrame(t, p, p.resizes, "transcript-latest-output", func(f shellCapturedFrame) bool {
@@ -101,7 +101,7 @@ func TestPackagedConPTYTranscriptBands(t *testing.T) {
 	t.Setenv("COLORTERM", "truecolor")
 	t.Setenv("NO_COLOR", "")
 	p := startConPTYOptions(t, binary, t.TempDir(), t.TempDir(), false, "--no-motion")
-	p.awaitVisible(t, 0, "Enter send")
+	p.awaitVisible(t, 0, "? shortcuts")
 	mark := p.send(t, "Explain this local demonstration\r")
 	p.awaitVisible(t, mark, "Ready for your next prompt")
 	awaitShellFrame(t, p, p.resizes, "transcript-band-default-palette", transcriptDefaultBandMatches)
@@ -153,19 +153,22 @@ func transcriptDefaultBandMatches(frame shellCapturedFrame) bool {
 func TestTranscriptBandPredicateRejectsMissingPaddingAndWrongContrast(t *testing.T) {
 	frame := shellCapturedFrame{Width: 80, Height: 24, Rows: make([]string, 24)}
 	frame.Rows[0] = "UCLI version"
-	frame.Rows[1] = "read-only | effort auto"
+	frame.Rows[1] = "Chat   Sessions   Connect"
 	frame.Rows[2] = strings.Repeat("\u2500", 79)
-	frame.Rows[3] = "  Your prompt"
-	frame.Rows[4] = "> Explain this local demonstration"
-	frame.Rows[5] = "Assistant \u00b7 demo/fast"
-	frame.Rows[6] = "Your task and this simulated result are saved."
-	frame.Rows[18] = "[OK] Ready"
-	frame.Rows[19], frame.Rows[21] = frame.Rows[2], frame.Rows[2]
-	frame.Rows[20] = ">"
-	frame.Rows[22] = "Model auto \u00b7 /work"
-	frame.Rows[23] = "Enter send | Tab actions"
-	for row := 3; row <= 6; row++ {
-		frame.Styles = append(frame.Styles, shellStyleSpan{Row: row, Start: 0, End: 79, Foreground: "default", Background: "default", Reverse: row < 5})
+	frame.Rows[3] = "Ready"
+	frame.Rows[4] = "  Your prompt"
+	frame.Rows[5] = "> Explain this local demonstration"
+	frame.Rows[7] = "Assistant \u00b7 demo/fast"
+	frame.Rows[8] = "  Your task and this simulated result are saved."
+	frame.Rows[16] = "[OK] Ready"
+	frame.Rows[17], frame.Rows[19] = frame.Rows[2], frame.Rows[2]
+	frame.Rows[18] = ">"
+	frame.Rows[20] = "Model auto \u00b7 auto \u00b7 Usage not reported"
+	frame.Rows[21] = "/work"
+	frame.Rows[22] = "read-only \u00b7 Account auto"
+	frame.Rows[23] = "\u2190 agents \u00b7 ? shortcuts"
+	for _, row := range []int{4, 5, 7, 8} {
+		frame.Styles = append(frame.Styles, shellStyleSpan{Row: row, Start: 0, End: 79, Foreground: "default", Background: "default", Reverse: row < 6})
 	}
 	if !transcriptDefaultBandMatches(frame) {
 		t.Fatal("valid paired-default band rejected")

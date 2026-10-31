@@ -10,12 +10,23 @@ import (
 // attemptEvent scopes only the rich display. The durable event, JSON wire format
 // and plain foreground text retain their existing behavior.
 func (o *output) attemptEvent(event core.Event, model string) error {
+	if o.terminal != nil && !o.json && event.Type != "message_delta" && validTranscriptScopeID(event.TaskID) && validTranscriptScopeID(event.AttemptID) {
+		if err := o.jobEvent(event, model); err != nil {
+			return err
+		}
+		switch event.Type {
+		case "accepted", "status", "result_persisted":
+			return nil // The structured job surface owns progress, not chat text.
+		}
+	}
 	if o.terminal == nil || o.json || event.Type != "message_delta" {
 		return o.event(event)
 	}
 	if !validTranscriptScopeID(event.TaskID) || !validTranscriptScopeID(event.AttemptID) {
 		return core.Problem("display_scope", "A task and attempt identity are required for scoped output.", 9)
 	}
+	// Keep a short session tag: two concurrent tasks can use the same model.
+	// The heading opens its job inspector; full identities stay out of the body.
 	label := "Assistant · task " + inlineText(shortExecutionID(event.TaskID))
 	if model != "" {
 		label += " · " + clipCells(inlineText(model), 96)

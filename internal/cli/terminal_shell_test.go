@@ -81,7 +81,7 @@ func TestFixedShellConsumesOutputMenusAndFailureWithoutMovingComposer(t *testing
 		t.Fatal(err)
 	}
 	initial := p.model.View()
-	if !initial.AltScreen || initial.Cursor.Y != 20 {
+	if !initial.AltScreen || initial.Cursor.Y != 18 {
 		t.Fatalf("composer is not bottom anchored: %#v", initial)
 	}
 	for i := range 100 {
@@ -92,23 +92,23 @@ func TestFixedShellConsumesOutputMenusAndFailureWithoutMovingComposer(t *testing
 	_ = u.notice(terminalNotice{Text: "Cannot connect; draft is kept.", Kind: toneError})
 	view := p.model.View()
 	lines := strings.Split(view.Content, "\n")
-	if len(lines) != 24 || !strings.Contains(lines[0], "UCLI 0.1-test") || lines[1] != "read-only" || lines[2] != strings.Repeat("─", 79) {
+	if len(lines) != 24 || !strings.Contains(lines[0], "UCLI 0.1-test") || lines[1] != "Chat   Sessions   Connect" || lines[2] != strings.Repeat("─", 79) || !strings.Contains(lines[3], "Ready") {
 		t.Fatalf("header moved after output: %q", view.Content)
 	}
-	if !strings.Contains(lines[18], "[Error] Cannot connect") || lines[20] != "> draft stays" || view.Cursor.Y != initial.Cursor.Y {
+	if !strings.Contains(lines[16], "[Error] Cannot connect") || lines[18] != "> draft stays" || view.Cursor.Y != initial.Cursor.Y {
 		t.Fatalf("failure displaced input or notice: %q", view.Content)
 	}
-	if lines[19] != strings.Repeat("─", 79) || lines[21] != lines[19] || lines[22] != "Model demo/fast · /work/ucli" || !strings.Contains(lines[23], "Tab actions") {
+	if lines[17] != strings.Repeat("─", 79) || lines[19] != lines[17] || lines[20] != "Model demo/fast · auto · Usage not reported" || lines[21] != "/work/ucli" || lines[22] != "read-only · fresh native context · Account auto" || lines[23] != "← agents · ? shortcuts" {
 		t.Fatalf("prompt rules, metadata, or hints moved: %q", view.Content)
 	}
 	_ = u.paint(terminalFrame{Lines: []terminalLine{{Text: "Choose model"}, {Text: "Search: deep"}, {Text: "> demo/deep", Focused: true}}, CursorRow: 1, CursorCol: 12})
 	menu := p.model.View()
-	if menu.Cursor.Y != 4 || !strings.Contains(menu.Content, "> draft stays") || !strings.Contains(menu.Content, "Draft kept · finish this panel") {
+	if menu.Cursor.Y != 5 || !strings.Contains(menu.Content, "> draft stays") || !strings.Contains(menu.Content, "Draft kept · finish this panel") {
 		t.Fatalf("menu lost composition or active cursor: %#v", menu)
 	}
 	_ = u.paintComposer(composer) // Escape returns to the unchanged editor.
 	returned := p.model.View()
-	if returned.Cursor.Y != 20 || p.model.shell.composer.Lines[0].Text != composer.Lines[0].Text {
+	if returned.Cursor.Y != 18 || p.model.shell.composer.Lines[0].Text != composer.Lines[0].Text {
 		t.Fatal("return changed draft or cursor")
 	}
 	for _, msg := range p.msgs {
@@ -124,7 +124,7 @@ func TestFramedComposerMultilineAndLongMetadataPreserveContext(t *testing.T) {
 	_ = u.paintComposer(terminalFrame{Lines: []terminalLine{{Text: "> first"}, {Text: "  second"}, {Text: "  third"}, {Text: "Tab actions"}}, CursorRow: 2, CursorCol: 7})
 	v := p.model.View()
 	lines := strings.Split(v.Content, "\n")
-	if len(lines) != 20 || v.Cursor == nil || v.Cursor.Y != 16 || lines[14] != "> first" || lines[16] != "  third" || lines[17] != strings.Repeat("─", 59) || !strings.HasSuffix(lines[18], "/directory/ucli") || lines[19] != "Tab actions" {
+	if len(lines) != 20 || v.Cursor == nil || v.Cursor.Y != 14 || lines[12] != "> first" || lines[14] != "  third" || lines[15] != strings.Repeat("─", 59) || !strings.HasPrefix(lines[16], "Model ") || !strings.Contains(lines[16], "Usage not reported") || !strings.HasSuffix(lines[17], "/directory/ucli") || !strings.Contains(lines[18], "Account") || lines[19] != "← agents · ? shortcuts" {
 		t.Fatalf("multiline composer displaced footer or lost path suffix: %q cursor=%#v", v.Content, v.Cursor)
 	}
 	if strings.Contains(strings.Join(lines[:3], "\n"), "provider/") || strings.Contains(strings.Join(lines[:3], "\n"), "/directory/ucli") {
@@ -152,13 +152,13 @@ func TestFramedComposerActualEditorKeepsCursorOnInputAtEveryHeight(t *testing.T)
 	}
 }
 
-func TestFramedComposerBusyFooterKeepsInterruptHint(t *testing.T) {
+func TestFramedComposerBusyFooterKeepsOwnershipWithoutEditorCursor(t *testing.T) {
 	u, p := shellHarness(t, 80, 24, false)
 	_ = u.paintComposer(terminalFrame{Lines: []terminalLine{{Text: "> "}, {Text: "Ctrl+C interrupts", Dim: true}}, CursorRow: -1})
 	_ = u.paint(terminalFrame{CursorRow: -1}) // execution has no menu overlay
 	view := p.model.View()
 	lines := strings.Split(view.Content, "\n")
-	if view.Cursor != nil || lines[23] != "Ctrl+C interrupts" || strings.Contains(view.Content, "finish this panel") || strings.Contains(view.Content, "Working") {
+	if view.Cursor != nil || lines[23] != "← agents · ? shortcuts" || strings.Contains(view.Content, "finish this panel") || strings.Contains(view.Content, "Working") {
 		t.Fatalf("busy footer falsely describes an editable panel: %q", view.Content)
 	}
 }
@@ -183,7 +183,9 @@ func TestFixedShellScrollKeysPreserveDraftAndOverlayRouting(t *testing.T) {
 	for range 100 {
 		p.Send(tea.KeyPressMsg(tea.Key{Code: tea.KeyPgUp}))
 	}
-	for range 10 {
+	// The 16-row layout leaves a small viewport; 50 pages still exceeds the
+	// 42 retained text rows without concealing 100 accumulated overscrolls.
+	for range 50 {
 		p.Send(tea.KeyPressMsg(tea.Key{Code: tea.KeyPgDown}))
 	}
 	if !strings.Contains(p.model.View().Content, "new output") {

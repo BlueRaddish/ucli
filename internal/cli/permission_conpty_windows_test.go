@@ -109,8 +109,8 @@ func awaitPermissionComposer(t *testing.T, p *pseudoTerminal, mark int, label, d
 	t.Helper()
 	awaitShellFrame(t, p, p.resizes, label, func(f shellCapturedFrame) bool {
 		return f.RawBytes > mark && f.Width == 80 && f.Height == 24 && len(f.Rows) == 24 &&
-			strings.Contains(f.Rows[1], permission) && strings.Contains(f.Rows[1], "effort medium") &&
-			strings.Contains(f.Rows[20], draft) && strings.Contains(f.Rows[23], "Tab actions") && f.CursorY == 20
+			strings.Contains(f.Rows[22], permission) && strings.Contains(f.Rows[20], "medium") &&
+			strings.Contains(f.Rows[18], draft) && strings.Contains(f.Rows[23], "? shortcuts") && f.CursorY == 18
 	})
 }
 

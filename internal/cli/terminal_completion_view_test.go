@@ -22,16 +22,19 @@ func TestCompletionPopupPreservesShellGeometryAndReachability(t *testing.T) {
 			_ = u.paintComposer(frame)
 			view := p.model.View()
 			rows := strings.Split(view.Content, "\n")
-			if len(rows) != height || view.Cursor == nil || view.Cursor.Y != height-4 || view.Cursor.X != 3 || strings.Contains(view.Content, "\x1b[") {
+			if len(rows) != height || view.Cursor == nil || view.Cursor.Y != height-6 || view.Cursor.X != 3 || strings.Contains(view.Content, "\x1b[") {
 				t.Fatalf("%dx%d lost input geometry or no-color mode: %#v", width, height, view)
 			}
-			for _, index := range []int{0, 1, 2, height - 6, height - 5, height - 4, height - 3, height - 2, height - 1} {
+			for _, index := range []int{0, 1, 2, 3, height - 8, height - 7, height - 6, height - 5, height - 4, height - 3, height - 2} {
 				if rows[index] != baseline[index] {
 					t.Fatalf("completion displaced fixed row %d: %q != %q", index, rows[index], baseline[index])
 				}
 			}
+			if !strings.Contains(rows[height-1], "Enter/Tab complete") || !strings.Contains(rows[height-1], "Esc close") || strings.Contains(rows[height-1], "? shortcuts") {
+				t.Fatalf("completion footer describes the wrong action: %q", rows[height-1])
+			}
 			selected := completion.result().Rows[completion.result().Focus].Name
-			if !strings.Contains(strings.Join(rows[3:height-6], "\n"), "> "+selected+" ") {
+			if !strings.Contains(strings.Join(rows[4:height-8], "\n"), "> "+selected+" ") {
 				t.Fatalf("selected command %s is outside the bounded viewport", selected)
 			}
 			completion.move(1)

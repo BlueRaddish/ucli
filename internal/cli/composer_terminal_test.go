@@ -180,11 +180,11 @@ func TestComposerTypedAndTabFatalActionParity(t *testing.T) {
 func TestComposerHintsFitWithoutPartialControls(t *testing.T) {
 	for _, width := range []int{80, 60, 40, 24, 12, 5} {
 		hint := composerHint(width)
-		if cellWidth(hint) >= width || (width >= 12 && !strings.Contains(hint, "Tab actions")) {
+		if cellWidth(hint) >= width || (width >= 12 && !strings.Contains(hint, "← agents")) {
 			t.Fatalf("width %d clips discovery: %q", width, hint)
 		}
-		if width >= 80 && !strings.Contains(hint, "Ctrl+C twice") {
-			t.Fatalf("width %d loses complete exit hint: %q", width, hint)
+		if width >= 25 && hint != "← agents · ? shortcuts" || width >= 18 && width < 25 && hint != "← agents · ? help" {
+			t.Fatalf("width %d loses complete navigation hints: %q", width, hint)
 		}
 	}
 }

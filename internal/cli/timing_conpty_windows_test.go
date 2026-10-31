@@ -45,7 +45,7 @@ func TestPackagedConPTYRichTiming(t *testing.T) {
 				last := p.observations[len(p.observations)-1]
 				samples[kind] = append(samples[kind], last["elapsed_ms"].(float64))
 			}
-			measure(0, "Tab actions", "first_frame")
+			measure(0, "? shortcuts", "first_frame")
 			mark := p.send(t, "\x15/models\r")
 			measure(mark, "Choose a CLI", "open_models")
 			// Enter the demo model layer before measuring its local filter.

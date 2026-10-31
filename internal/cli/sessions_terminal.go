@@ -335,9 +335,20 @@ func inspectSessionsTerminal(ctx context.Context, terminal taskPickerTerminal, s
 				}
 				v.picker, _ = v.picker.reduce(pickerAction{Kind: direction})
 				v.focus = v.picker.focused
-			case keyEnter:
+			case keyEnter, keyChoice:
 				if v.loading || v.feedback != "" {
 					continue
+				}
+				if event.kind == keyChoice {
+					valid := false
+					for _, index := range v.picker.matches() {
+						if v.picker.options[index].Value == event.text {
+							v.focus, valid = event.text, true
+						}
+					}
+					if !valid {
+						continue
+					}
 				}
 				switch v.focus {
 				case taskPickerOlder:
@@ -403,7 +414,7 @@ func (v *sessionMonitorView) frame(width, height int) terminalFrame {
 	if v.snapshot.task.ID == "" {
 		title = "Session · reading saved work"
 	}
-	view.Lines = append(view.Lines, terminalLine{Text: title, Tone: toneInfo})
+	view.Lines = append(view.Lines, terminalLine{Text: title, Tone: toneInfo, Bold: true})
 	if v.cache == nil || v.cacheWidth != width {
 		v.cache = nil
 		for _, line := range sessionMonitorDetail(v.snapshot) {
@@ -428,7 +439,7 @@ func (v *sessionMonitorView) frame(width, height int) terminalFrame {
 	if width < 55 {
 		footer = "Esc back · Up/Down scroll · r refresh"
 	}
-	view.Lines = append(view.Lines, terminalLine{Text: footer, Dim: true})
+	view.Lines = append(view.Lines, terminalLine{Text: footer, Dim: true, Action: "escape"})
 	return view
 }
 

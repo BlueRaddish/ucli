@@ -143,21 +143,21 @@ func TestPackagedConPTYSlashCompletion(t *testing.T) {
 }
 
 func completionShellFrame(f shellCapturedFrame, width, height int, input, selected, feedback string, popup bool) bool {
-	if !shellFrameBase(f, width, height) || !shellFrameRule(f.Rows[height-5], width) ||
-		strings.TrimSpace(f.Rows[height-4]) != strings.TrimSpace("> "+input) ||
-		f.CursorY != height-4 || f.CursorX != 2+len(input) {
+	if !shellFrameBase(f, width, height) || !shellFrameRule(f.Rows[height-7], width) ||
+		strings.TrimSpace(f.Rows[height-6]) != strings.TrimSpace("> "+input) ||
+		f.CursorY != height-6 || f.CursorX != 2+len(input) {
 		return false
 	}
-	body := strings.Join(f.Rows[3:height-6], "\n")
+	body := strings.Join(f.Rows[4:height-8], "\n")
 	if !popup {
 		return !strings.Contains(body, "Commands") && !strings.Contains(body, "No commands match") &&
-			strings.Contains(f.Rows[height-1], "Tab actions")
+			strings.Contains(f.Rows[height-1], "? shortcuts")
 	}
 	if !strings.Contains(body, feedback) || !strings.Contains(body, "Esc close") {
 		return false
 	}
 	foot := f.Rows[height-1]
-	if strings.Contains(foot, "Tab actions") || !strings.Contains(foot, "Esc close") {
+	if strings.Contains(foot, "? shortcuts") || !strings.Contains(foot, "Esc close") {
 		return false
 	}
 	if selected == "" {
@@ -171,7 +171,7 @@ func completionShellFrame(f shellCapturedFrame, width, height int, input, select
 	if !strings.Contains(body, enter) || !strings.Contains(foot, enter) || !strings.Contains(foot, "Tab complete") {
 		return false
 	}
-	for _, row := range f.Rows[3 : height-6] {
+	for _, row := range f.Rows[4 : height-8] {
 		if strings.HasPrefix(strings.TrimSpace(row), "> "+selected+" ") {
 			return true
 		}
@@ -180,15 +180,15 @@ func completionShellFrame(f shellCapturedFrame, width, height int, input, select
 }
 
 func TestCompletionFrameRejectsDetachedCursorAndLostInput(t *testing.T) {
-	f := shellCapturedFrame{Width: 80, Height: 24, Rows: make([]string, 24), CursorX: 5, CursorY: 20}
-	f.Rows[0], f.Rows[1] = "UCLI version", "read-only | effort auto"
-	f.Rows[2], f.Rows[19], f.Rows[21] = strings.Repeat("\u2500", 79), strings.Repeat("\u2500", 79), strings.Repeat("\u2500", 79)
-	f.Rows[14], f.Rows[15], f.Rows[16] = "Commands matching /mo", "> /models  choose models", "Up/Down select | Enter/Tab complete | Esc close"
-	f.Rows[20], f.Rows[22], f.Rows[23] = "> /mo", "Model auto | /work/completion-workspace", "Up/Down select | Enter/Tab complete | Esc close"
+	f := shellCapturedFrame{Width: 80, Height: 24, Rows: make([]string, 24), CursorX: 5, CursorY: 18}
+	f.Rows[0], f.Rows[1], f.Rows[3] = "UCLI version", "Chat   Sessions   Connect", "Ready"
+	f.Rows[2], f.Rows[17], f.Rows[19] = strings.Repeat("\u2500", 79), strings.Repeat("\u2500", 79), strings.Repeat("\u2500", 79)
+	f.Rows[12], f.Rows[13], f.Rows[14] = "Commands matching /mo", "> /models  choose models", "Up/Down select | Enter/Tab complete | Esc close"
+	f.Rows[18], f.Rows[20], f.Rows[21], f.Rows[22], f.Rows[23] = "> /mo", "Model auto · auto · Usage not reported", "/work/completion-workspace", "read-only · Account auto", "Up/Down select | Enter/Tab complete | Esc close"
 	if !completionShellFrame(f, 80, 24, "/mo", "/models", "Commands matching /mo", true) {
 		t.Fatal("valid completion frame rejected")
 	}
-	for _, row := range []int{14, 15, 16, 20, 22, 23} {
+	for _, row := range []int{12, 13, 14, 18, 20, 21, 22, 23} {
 		bad := f
 		bad.Rows = append([]string(nil), f.Rows...)
 		bad.Rows[row] = ""
@@ -196,7 +196,7 @@ func TestCompletionFrameRejectsDetachedCursorAndLostInput(t *testing.T) {
 			t.Fatalf("missing completion/input/footer row %d accepted", row)
 		}
 	}
-	f.Rows[23] = "Tab actions | Esc close"
+	f.Rows[23] = "← agents · ? shortcuts | Esc close"
 	if completionShellFrame(f, 80, 24, "/mo", "/models", "Commands matching /mo", true) {
 		t.Fatal("stale actions footer accepted while suggestions were open")
 	}
@@ -205,22 +205,22 @@ func TestCompletionFrameRejectsDetachedCursorAndLostInput(t *testing.T) {
 	if completionShellFrame(f, 80, 24, "/mo", "/models", "Commands matching /mo", true) {
 		t.Fatal("cursor moved into suggestions was accepted")
 	}
-	f.CursorY, f.CursorX = 20, 4
+	f.CursorY, f.CursorX = 18, 4
 	if completionShellFrame(f, 80, 24, "/mo", "/models", "Commands matching /mo", true) {
 		t.Fatal("lost editing position was accepted")
 	}
 	f.CursorX = 5
-	f.Rows[14], f.Rows[15], f.Rows[16], f.Rows[20] = "Commands matching /zz", "No commands match /zz", "Keep typing | Esc close", "> /zz"
+	f.Rows[12], f.Rows[13], f.Rows[14], f.Rows[18] = "Commands matching /zz", "No commands match /zz", "Keep typing | Esc close", "> /zz"
 	f.Rows[23] = "Keep typing | Esc close"
 	if !completionShellFrame(f, 80, 24, "/zz", "", "No commands match /zz", true) {
 		t.Fatal("editable no-match frame rejected")
 	}
-	f.Rows[23] = "Tab actions | Esc close"
+	f.Rows[23] = "← agents · ? shortcuts | Esc close"
 	if completionShellFrame(f, 80, 24, "/zz", "", "No commands match /zz", true) {
 		t.Fatal("stale actions footer accepted for empty suggestions")
 	}
 	f.Rows[23] = "Keep typing | Esc close"
-	f.Rows[16] = "Enter/Tab complete | Esc close"
+	f.Rows[14] = "Enter/Tab complete | Esc close"
 	if completionShellFrame(f, 80, 24, "/zz", "", "No commands match /zz", true) {
 		t.Fatal("empty results advertised a selectable command")
 	}

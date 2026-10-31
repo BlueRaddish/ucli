@@ -9,10 +9,10 @@ import (
 	"ucli.local/ucli/assets/mascot"
 )
 
-type terminalOptions struct{ NoMotion, ASCII bool }
+type terminalOptions struct{ NoMotion, ASCII, NoMouse bool }
 
 func terminalOptionsFor(p invocation) terminalOptions {
-	return terminalOptions{NoMotion: p.set["no-motion"], ASCII: p.set["ascii"]}
+	return terminalOptions{NoMotion: p.set["no-motion"], ASCII: p.set["ascii"], NoMouse: p.set["no-mouse"]}
 }
 
 type terminalActivityMsg struct {

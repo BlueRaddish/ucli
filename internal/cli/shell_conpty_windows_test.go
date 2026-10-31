@@ -91,7 +91,7 @@ func TestPackagedConPTYFixedShell(t *testing.T) {
 				t.Fatal(err)
 			}
 			p := startConPTYOptions(t, binary, home, cwd, false, options...)
-			p.awaitVisible(t, 0, "Tab actions")
+			p.awaitVisible(t, 0, "? shortcuts")
 			p.send(t, "\x15")
 			frame := awaitShellFrame(t, p, p.resizes, "initial", func(f shellCapturedFrame) bool {
 				return shellFramePrompt(f, 80, 24, "", ">") && shellFrameFooter(f, "auto", filepath.Base(cwd)) && shellFrameWelcomeCats(f, mode == "ascii-static")
@@ -102,7 +102,7 @@ func TestPackagedConPTYFixedShell(t *testing.T) {
 			mark := p.send(t, "/help\r")
 			p.awaitVisible(t, mark, "/exit")
 			awaitShellFrame(t, p, p.resizes, "output-overflow", func(f shellCapturedFrame) bool {
-				return shellFrameBase(f, 80, 24) && strings.Contains(f.Rows[23], "Tab actions") && strings.Contains(strings.Join(f.Rows, "\n"), "PgUp/PgDn")
+				return shellFrameBase(f, 80, 24) && strings.Contains(f.Rows[23], "? shortcuts") && strings.Contains(strings.Join(f.Rows, "\n"), "PgUp/PgDn")
 			})
 			mark = p.send(t, "\x15/workflow missing-shell-plan.json\r")
 			p.awaitVisible(t, mark, "Cannot read workflow file")
@@ -125,19 +125,19 @@ func TestPackagedConPTYFixedShell(t *testing.T) {
 			mark = p.send(t, "\r")
 			p.awaitVisible(t, mark, "Choose effort")
 			awaitShellFrame(t, p, p.resizes, "effort-overlay", func(f shellCapturedFrame) bool {
-				return shellFrameComposer(f, 80, 24, "[Error]", []string{visibleDraft}, "Draft kept") && strings.Contains(strings.Join(f.Rows[3:18], "\n"), "Choose effort")
+				return shellFrameComposer(f, 80, 24, "[Error]", []string{visibleDraft}, "Draft kept") && strings.Contains(strings.Join(f.Rows[4:16], "\n"), "Choose effort")
 			})
 			mark = p.send(t, "\x1b")
-			p.awaitVisible(t, mark, "Tab actions")
+			p.awaitVisible(t, mark, "? shortcuts")
 			after := awaitShellFrame(t, p, p.resizes, "composition-restored", func(f shellCapturedFrame) bool {
-				return shellFramePrompt(f, 80, 24, "[Error]", visibleDraft) && f.CursorY == 20
+				return shellFramePrompt(f, 80, 24, "[Error]", visibleDraft) && f.CursorY == 18
 			})
 			if before.CursorX != after.CursorX {
 				t.Fatalf("overlay changed cursor: %d -> %d", before.CursorX, after.CursorX)
 			}
 			p.resize(t, 60, 20)
 			frame = awaitShellFrame(t, p, p.resizes, "resized", func(f shellCapturedFrame) bool {
-				return shellFramePrompt(f, 60, 20, "[Error]", visibleDraft) && shellFrameFooter(f, "auto", filepath.Base(cwd)) && f.CursorY == 16
+				return shellFramePrompt(f, 60, 20, "[Error]", visibleDraft) && shellFrameFooter(f, "auto", filepath.Base(cwd)) && f.CursorY == 14
 			})
 			assertShellColor(t, frame, mode)
 			// A second line grows upward while the footer and final editor row stay
@@ -146,8 +146,8 @@ func TestPackagedConPTYFixedShell(t *testing.T) {
 			mark = p.send(t, "\x1b[200~"+continuation+"\x1b[201~")
 			p.awaitVisible(t, mark, "Second composer line")
 			awaitShellFrame(t, p, p.resizes, "multiline", func(f shellCapturedFrame) bool {
-				return shellFrameComposer(f, 60, 20, "[Error]", []string{visibleDraft, "Second composer line"}, "Tab actions") &&
-					shellFrameFooter(f, "auto", filepath.Base(cwd)) && f.CursorY == 16
+				return shellFrameComposer(f, 60, 20, "[Error]", []string{visibleDraft, "Second composer line"}, "? shortcuts") &&
+					shellFrameFooter(f, "auto", filepath.Base(cwd)) && f.CursorY == 14
 			})
 			got, attempts, err := a.Task(ctx, seed.ID)
 			if err != nil || got.Draft != seed.Draft || got.Revision != seed.Revision || got.Selection != seed.Selection || len(attempts) != 0 {
@@ -166,21 +166,23 @@ func TestPackagedConPTYFixedShell(t *testing.T) {
 }
 
 func shellFrameBase(f shellCapturedFrame, width, height int) bool {
-	return width >= 40 && height >= 14 && f.Width == width && f.Height == height && len(f.Rows) == height &&
-		strings.Contains(f.Rows[0], "UCLI") && strings.Contains(f.Rows[1], "read-only") && strings.Contains(f.Rows[1], "effort") &&
-		shellFrameRule(f.Rows[2], width) && shellFrameRule(f.Rows[height-3], width) &&
-		strings.Contains(f.Rows[height-2], "Model ")
+	return width >= 40 && height >= 16 && f.Width == width && f.Height == height && len(f.Rows) == height &&
+		strings.Contains(f.Rows[0], "UCLI") &&
+		(strings.Contains(f.Rows[1], "Chat") && strings.Contains(f.Rows[1], "Sessions") && strings.Contains(f.Rows[1], "Connect") || strings.Contains(f.Rows[1], "Back") && strings.Contains(f.Rows[1], "Esc")) &&
+		shellFrameRule(f.Rows[2], width) && strings.TrimSpace(f.Rows[3]) != "" && shellFrameRule(f.Rows[height-5], width) &&
+		strings.Contains(f.Rows[height-4], "Model ") && strings.Contains(f.Rows[height-4], "Usage ") &&
+		strings.TrimSpace(f.Rows[height-3]) != "" && strings.Contains(f.Rows[height-2], "Account ")
 }
 
 func shellFramePrompt(f shellCapturedFrame, width, height int, notice, input string) bool {
-	return shellFrameComposer(f, width, height, notice, []string{input}, "Tab actions")
+	return shellFrameComposer(f, width, height, notice, []string{input}, "? shortcuts")
 }
 
 func shellFrameComposer(f shellCapturedFrame, width, height int, notice string, inputs []string, hint string) bool {
-	if !shellFrameBase(f, width, height) || len(inputs) < 1 || len(inputs) > height-8 || !strings.Contains(f.Rows[height-1], hint) {
+	if !shellFrameBase(f, width, height) || len(inputs) < 1 || len(inputs) > height-10 || !strings.Contains(f.Rows[height-1], hint) {
 		return false
 	}
-	separator := height - len(inputs) - 4
+	separator := height - len(inputs) - 6
 	if !shellFrameRule(f.Rows[separator], width) || !strings.Contains(f.Rows[separator-1], notice) {
 		return false
 	}
@@ -197,8 +199,8 @@ func shellFrameRule(row string, width int) bool {
 }
 
 func shellFrameFooter(f shellCapturedFrame, model, pathTail string) bool {
-	return len(f.Rows) >= 2 && strings.Contains(f.Rows[len(f.Rows)-2], "Model "+model) &&
-		strings.Contains(f.Rows[len(f.Rows)-2], pathTail)
+	return len(f.Rows) >= 4 && strings.Contains(f.Rows[len(f.Rows)-4], "Model "+model) &&
+		strings.Contains(f.Rows[len(f.Rows)-3], pathTail)
 }
 
 func shellColorMatches(f shellCapturedFrame, mode string) bool {
@@ -206,7 +208,7 @@ func shellColorMatches(f shellCapturedFrame, mode string) bool {
 }
 
 func shellFrameWelcomeCats(f shellCapturedFrame, ascii bool) bool {
-	if f.Height < 14 || len(f.Rows) != f.Height {
+	if f.Height < 16 || len(f.Rows) != f.Height {
 		return false
 	}
 	face := "(^.\u2a4a .^)"
@@ -216,7 +218,7 @@ func shellFrameWelcomeCats(f shellCapturedFrame, ascii bool) bool {
 			return false
 		}
 	}
-	return strings.Contains(f.Rows[0], face) && strings.Contains(f.Rows[f.Height-6], face)
+	return strings.Contains(f.Rows[0], face) && strings.Contains(f.Rows[f.Height-8], face)
 }
 
 func assertShellColor(t *testing.T, f shellCapturedFrame, mode string) {
@@ -292,9 +294,9 @@ func awaitShellFrame(t *testing.T, p *pseudoTerminal, resizes []shellResize, lab
 // controls exercise the same predicate used by the packaged observation loop.
 func TestShellFramePredicateRejectsMovedHeaderAndWrongSize(t *testing.T) {
 	f := shellCapturedFrame{Width: 80, Height: 24, Rows: make([]string, 24)}
-	f.Rows[0], f.Rows[1], f.Rows[2] = "UCLI version", "read-only | effort auto | account auto", strings.Repeat("\u2500", 79)
-	f.Rows[18], f.Rows[19], f.Rows[20], f.Rows[21] = "[Error] fixture", strings.Repeat("\u2500", 79), "> kept", strings.Repeat("\u2500", 79)
-	f.Rows[22], f.Rows[23] = "Model auto · /work/framed-shell-workspace", "Tab actions"
+	f.Rows[0], f.Rows[1], f.Rows[2], f.Rows[3] = "UCLI version", "Chat   Sessions   Connect", strings.Repeat("\u2500", 79), "Ready"
+	f.Rows[16], f.Rows[17], f.Rows[18], f.Rows[19] = "[Error] fixture", strings.Repeat("\u2500", 79), "> kept", strings.Repeat("\u2500", 79)
+	f.Rows[20], f.Rows[21], f.Rows[22], f.Rows[23] = "Model auto · auto · Usage not reported", "/work/framed-shell-workspace", "read-only · Account auto", "← agents · ? shortcuts"
 	if !shellFrameBase(f, 80, 24) {
 		t.Fatal("valid frame rejected")
 	}
@@ -304,11 +306,11 @@ func TestShellFramePredicateRejectsMovedHeaderAndWrongSize(t *testing.T) {
 	if shellFrameRule(strings.Repeat("-", 79), 80) || shellFrameRule(strings.Repeat("\u2500", 78), 80) {
 		t.Fatal("discontinuous or short rule accepted")
 	}
-	for _, row := range []int{0, 1, 2, 18, 19, 20, 21, 22, 23} {
+	for _, row := range []int{0, 1, 2, 3, 16, 17, 18, 19, 20, 21, 22, 23} {
 		t.Run("missing-row-"+strconv.Itoa(row), func(t *testing.T) {
 			moved := f
 			moved.Rows = append([]string(nil), f.Rows...)
-			moved.Rows[3], moved.Rows[row] = moved.Rows[row], ""
+			moved.Rows[4], moved.Rows[row] = moved.Rows[row], ""
 			if shellFramePrompt(moved, 80, 24, "[Error]", "> kept") {
 				t.Fatalf("required row %d accepted after moving into body", row)
 			}
@@ -316,14 +318,14 @@ func TestShellFramePredicateRejectsMovedHeaderAndWrongSize(t *testing.T) {
 	}
 	wrong := f
 	wrong.Rows = append([]string(nil), f.Rows...)
-	wrong.Rows[22] = "Model other · /work/foreign"
+	wrong.Rows[20], wrong.Rows[21] = "Model other · auto · Usage not reported", "/work/foreign"
 	if shellFrameFooter(wrong, "auto", "framed-shell-workspace") {
 		t.Fatal("wrong requested model and lost path tail accepted")
 	}
 	multi := f
 	multi.Rows = append([]string(nil), f.Rows...)
-	multi.Rows[17], multi.Rows[18], multi.Rows[19], multi.Rows[20] = "[Error] fixture", strings.Repeat("\u2500", 79), "> first", "  second"
-	if !shellFrameComposer(multi, 80, 24, "[Error]", []string{"> first", "second"}, "Tab actions") || shellFramePrompt(multi, 80, 24, "[Error]", "second") {
+	multi.Rows[15], multi.Rows[16], multi.Rows[17], multi.Rows[18] = "[Error] fixture", strings.Repeat("\u2500", 79), "> first", "  second"
+	if !shellFrameComposer(multi, 80, 24, "[Error]", []string{"> first", "second"}, "? shortcuts") || shellFramePrompt(multi, 80, 24, "[Error]", "second") {
 		t.Fatal("multiline upward expansion did not retain distinct separator/notice coordinates")
 	}
 	overlay := f
@@ -342,15 +344,15 @@ func TestShellFramePredicateRejectsMovedHeaderAndWrongSize(t *testing.T) {
 	if shellFrameBase(f, 60, 20) {
 		t.Fatal("wrong dimensions accepted")
 	}
-	f.Rows[0], f.Rows[18] = "(^._.^) UCLI version", "[Info] (^._.^)  Ready"
+	f.Rows[0], f.Rows[16] = "(^._.^) UCLI version", "[Info] (^._.^)  Ready"
 	if !shellFrameWelcomeCats(f, true) {
 		t.Fatal("static ASCII welcome cats rejected")
 	}
-	f.Rows[18] = "[Info] Ready"
+	f.Rows[16] = "[Info] Ready"
 	if shellFrameWelcomeCats(f, true) {
 		t.Fatal("missing welcome notice cat accepted")
 	}
-	f.Rows[18] = "[Info] (^.\u2a4a .^)  Ready"
+	f.Rows[16] = "[Info] (^.\u2a4a .^)  Ready"
 	if shellFrameWelcomeCats(f, true) {
 		t.Fatal("Unicode cat accepted in ASCII mode")
 	}
@@ -358,7 +360,7 @@ func TestShellFramePredicateRejectsMovedHeaderAndWrongSize(t *testing.T) {
 	if !shellFrameWelcomeCats(f, false) {
 		t.Fatal("spaced Unicode welcome cats rejected")
 	}
-	f.Rows[18] = "[Info] (^.\u2a4a.^) Ready"
+	f.Rows[16] = "[Info] (^.\u2a4a.^) Ready"
 	if shellFrameWelcomeCats(f, false) {
 		t.Fatal("unspaced Unicode welcome cat accepted")
 	}

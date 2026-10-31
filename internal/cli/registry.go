@@ -23,6 +23,7 @@ var flags = []flagSpec{
 	{"plain", "", "", "use static text without color"},
 	{"no-color", "", "", "disable color; keep terminal keyboard navigation"},
 	{"no-motion", "", "", "keep terminal cats static; retain keyboard navigation"},
+	{"no-mouse", "", "", "disable terminal clicks for native text selection; F2 toggles while open"},
 	{"ascii", "", "", "use ASCII cat artwork in the rich terminal"},
 	{"model", "", "MODEL", "choose a model (new task default: auto)"},
 	{"effort", "", "EFFORT", "choose auto|low|medium|high|max (new task: auto)"},

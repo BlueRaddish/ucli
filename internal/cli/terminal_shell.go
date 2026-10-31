@@ -19,8 +19,10 @@ const (
 )
 
 type terminalChrome struct {
-	Version, Location, Model, Context string
-	Panel                             bool
+	Version, Location, Model, Context          string
+	Account, Effort, Permission, Usage, TaskID string
+	Demo                                       bool
+	Panel                                      bool
 }
 
 type terminalNotice struct {
@@ -64,7 +66,7 @@ const shellTranscriptBytes = 64 * 1024
 const shellTranscriptLines = 400
 
 type shellBudget struct {
-	header, body, notice, composer, upperRule, lowerRule, metadata int
+	header, body, notice, composer, upperRule, lowerRule, metadata, progress int
 }
 
 func terminalShellBudget(height, composerRows int, panel bool) shellBudget {
@@ -99,7 +101,14 @@ func terminalShellBudget(height, composerRows int, panel bool) shellBudget {
 	if height >= 14 {
 		b.header = 3
 	}
-	fixed := b.header + b.notice + b.upperRule + b.lowerRule + b.metadata
+	if !panel && height >= 12 {
+		b.metadata = 2
+		b.progress = 1
+	}
+	if !panel && height >= 16 {
+		b.metadata = 3
+	}
+	fixed := b.header + b.notice + b.upperRule + b.lowerRule + b.metadata + b.progress
 	minimum := 2 // editor and its keyboard hint
 	if panel {
 		minimum = 1 // a panel has controls, not a pretend editable prompt
@@ -155,6 +164,29 @@ func terminalStyle(line terminalLine, width int, color bool, theme terminalTheme
 	if !color || text == "" {
 		return text
 	}
+	styledSpans := false
+	for _, span := range line.Spans {
+		styledSpans = styledSpans || span.Tone != toneNormal || span.Bold
+	}
+	if styledSpans && !line.Band {
+		var out strings.Builder
+		position := 0
+		for _, span := range line.Spans {
+			start, end := max(position, span.Start), min(cellWidth(text), span.End)
+			if start >= end {
+				continue
+			}
+			if start > position {
+				out.WriteString(terminalStyle(terminalLine{Text: sliceTerminalCells(text, position, start), Dim: line.Dim}, start-position+1, color, theme))
+			}
+			out.WriteString(terminalStyle(terminalLine{Text: sliceTerminalCells(text, start, end), Tone: span.Tone, Bold: span.Bold, Dim: line.Dim}, end-start+1, color, theme))
+			position = end
+		}
+		if position < cellWidth(text) {
+			out.WriteString(terminalStyle(terminalLine{Text: sliceTerminalCells(text, position, cellWidth(text)), Dim: line.Dim}, cellWidth(text)-position+1, color, theme))
+		}
+		return out.String()
+	}
 	style := ""
 	switch line.Tone {
 	case toneInfo:
@@ -182,6 +214,12 @@ func terminalStyle(line terminalLine, width int, color bool, theme terminalTheme
 	} else if style == "" && line.Dim {
 		style = "2"
 	}
+	if line.Bold {
+		if style != "" {
+			style += ";"
+		}
+		style += "1"
+	}
 	if line.Band {
 		// Pair forced backgrounds with readable foregrounds. NO_COLOR retains
 		// the caption/gutter; unknown themes defer to their reverse palette.
@@ -198,6 +236,8 @@ func terminalStyle(line terminalLine, width int, color bool, theme terminalTheme
 			}
 			if style == "" {
 				style = foreground
+			} else if line.Tone == toneNormal && !line.Focused {
+				style = foreground + ";" + style
 			}
 			style += ";" + background
 		}
@@ -234,20 +274,71 @@ func (s terminalShell) header(cat string, width, rows int) []terminalLine {
 	if cellWidth(withCat) < width {
 		brand = withCat
 	}
-	context := s.chrome.Context
-	if s.chrome.Panel {
-		context = s.chrome.Model
-		if s.chrome.Context != "" {
-			context += " · " + s.chrome.Context
-		}
-	}
 	if rows == 1 {
 		return []terminalLine{{Text: brand, Tone: toneInfo}}
 	}
 	if rows == 2 {
 		return []terminalLine{{Text: brand, Tone: toneInfo}, shellRule(width)}
 	}
-	return []terminalLine{{Text: brand, Tone: toneInfo}, {Text: context, Dim: true}, shellRule(width)}
+	navigation := partsLine(terminalPart{Text: "Chat", Tone: toneInfo, Bold: true}, terminalPart{Text: "   Sessions", Action: "/sessions", Tone: toneInfo}, terminalPart{Text: "   Connect", Action: "/login", Tone: toneInfo})
+	if !s.composerFocus {
+		navigation = terminalLine{Text: "[Back · Esc]", Action: "escape", Tone: toneInfo}
+	}
+	return []terminalLine{{Text: brand, Tone: toneInfo}, navigation, shellRule(width)}
+}
+
+func (s terminalShell) footerMetadata(width, rows int) []terminalLine {
+	if rows <= 0 {
+		return nil
+	}
+	if s.chrome.Panel {
+		return []terminalLine{s.metadata(width)}
+	}
+	limit := max(1, width-1)
+	usage := s.chrome.Usage
+	if usage == "" {
+		usage = "not reported"
+	}
+	effort := s.chrome.Effort
+	if effort == "" {
+		effort = "auto"
+	}
+	suffix := " · " + effort + " · Usage " + usage
+	model := clipCells("Model "+inlineText(s.chrome.Model), max(1, limit-cellWidth(suffix)))
+	lines := []terminalLine{partsLine(terminalPart{Text: model, Action: "/models", Tone: toneInfo, Bold: true}, terminalPart{Text: " · " + effort, Action: "/models"}, terminalPart{Text: " · Usage " + usage, Tone: toneWarning})}
+	if rows >= 2 {
+		lines = append(lines, terminalLine{Text: tailCells(inlineText(s.chrome.Location), limit), Dim: true})
+	}
+	if rows >= 3 {
+		permission, tone := s.chrome.Permission, toneSuccess
+		if permission == "" {
+			permission = "read-only"
+		}
+		if permission != "read-only" {
+			tone = toneWarning
+		}
+		account := s.chrome.Account
+		if account == "" {
+			account = "auto"
+		}
+		context := ""
+		if !s.chrome.Demo {
+			context = " · fresh native context"
+		}
+		lines = append(lines, partsLine(terminalPart{Text: permission, Action: "/permission", Tone: tone}, terminalPart{Text: context, Tone: toneWarning}, terminalPart{Text: " · Account " + clipCells(inlineText(account), max(1, limit-cellWidth(permission+context)-11)), Action: "/accounts"}))
+		if s.chrome.Demo {
+			line := lines[len(lines)-1]
+			prefix := "DEMO · "
+			for i := range line.Spans {
+				line.Spans[i].Start += cellWidth(prefix)
+				line.Spans[i].End += cellWidth(prefix)
+			}
+			line.Spans = append([]terminalSpan{{Start: 0, End: cellWidth(prefix), Tone: toneWarning, Bold: true}}, line.Spans...)
+			line.Text = prefix + line.Text
+			lines[len(lines)-1] = line
+		}
+	}
+	return lines
 }
 
 func shellRule(width int) terminalLine {
@@ -356,12 +447,22 @@ func composerViewport(frame terminalFrame, rows int, active, overlay bool) ([]te
 	return out, row
 }
 
-func (m terminalModel) shellView(width, height int) tea.View {
+func (m terminalModel) shellFrame(width, height int) terminalFrame {
 	s := m.shell
 	budget := terminalShellBudget(height, len(s.composer.Lines), s.chrome.Panel)
 	lines := s.header(m.mascotHeader(), width, budget.header)
+	if m.jobInspector && len(lines) >= 2 {
+		lines[1] = terminalLine{Text: "[Back · Esc]", Action: "job:close", Tone: toneInfo}
+	}
+	if budget.progress > 0 {
+		line, ok := m.progressLine(width)
+		if !ok {
+			line = terminalLine{Text: "Ready · your message stays below", Dim: true}
+		}
+		lines = append(lines, line)
+	}
 	var popup []terminalLine
-	if s.composerFocus {
+	if s.composerFocus && !m.jobInspector {
 		popup = completionLines(s.composer.Completion, s.composer.CompletionQuery, width, budget.body)
 	}
 	historyRows := budget.body - len(popup)
@@ -370,11 +471,16 @@ func (m terminalModel) shellView(width, height int) tea.View {
 	if !s.composerFocus && len(m.frame.Lines) > 0 {
 		body = m.frame.Lines[:min(len(m.frame.Lines), budget.body)]
 		if m.frame.CursorRow >= 0 && m.frame.CursorRow < len(body) {
-			cursorRow, cursorCol = budget.header+m.frame.CursorRow, m.frame.CursorCol
+			cursorRow, cursorCol = budget.header+budget.progress+m.frame.CursorRow, m.frame.CursorCol
 		}
 	}
+	if m.jobInspector {
+		frame := m.inspectorFrame(width, budget.body)
+		body = frame.Lines[:min(len(frame.Lines), budget.body)]
+		cursorRow, cursorCol = -1, 0
+	}
 	lines = append(lines, body...)
-	for len(lines) < budget.header+historyRows {
+	for len(lines) < budget.header+budget.progress+historyRows {
 		lines = append(lines, terminalLine{})
 	}
 	lines = append(lines, popup...)
@@ -389,7 +495,7 @@ func (m terminalModel) shellView(width, height int) tea.View {
 		lines = append(lines, shellRule(width))
 	}
 	composer, row := composerViewport(s.composer, budget.composer, s.composerFocus, len(m.frame.Lines) > 0)
-	if row >= 0 {
+	if row >= 0 && !m.jobInspector {
 		cursorRow, cursorCol = len(lines)+row, s.composer.CursorCol
 	}
 	var hint []terminalLine
@@ -402,17 +508,36 @@ func (m terminalModel) shellView(width, height int) tea.View {
 		lines = append(lines, shellRule(width))
 	}
 	if budget.metadata > 0 {
-		lines = append(lines, s.metadata(width))
+		lines = append(lines, s.footerMetadata(width, budget.metadata)...)
+	}
+	if s.composerFocus && !s.composer.Completion.Visible && len(hint) > 0 {
+		hint[0] = shortcutsFooter(width)
 	}
 	lines = append(lines, hint...)
+	return terminalFrame{Lines: lines, CursorRow: cursorRow, CursorCol: cursorCol}
+}
+
+func shortcutsFooter(width int) terminalLine {
+	if width < 25 {
+		return partsLine(terminalPart{Text: "← agents", Action: "/models", Tone: toneInfo}, terminalPart{Text: " · ", Tone: toneNormal}, terminalPart{Text: "? help", Action: "/shortcuts", Tone: toneInfo})
+	}
+	return partsLine(terminalPart{Text: "← agents", Action: "/models", Tone: toneInfo}, terminalPart{Text: " · ", Tone: toneNormal}, terminalPart{Text: "? shortcuts", Action: "/shortcuts", Tone: toneInfo})
+}
+
+func (m terminalModel) shellView(width, height int) tea.View {
+	frame := m.shellFrame(width, height)
+	lines := frame.Lines
 	rendered := make([]string, len(lines))
 	for i, line := range lines {
 		rendered[i] = terminalStyle(line, width, m.color, m.theme)
 	}
 	view := tea.NewView(strings.Join(rendered, "\n"))
 	view.AltScreen = true
-	if cursorRow >= 0 && cursorRow < height {
-		view.Cursor = tea.NewCursor(min(max(0, cursorCol), max(0, width-2)), cursorRow)
+	if !m.mouseDisabled {
+		view.MouseMode = tea.MouseModeCellMotion
+	}
+	if frame.CursorRow >= 0 && frame.CursorRow < height {
+		view.Cursor = tea.NewCursor(min(max(0, frame.CursorCol), max(0, width-2)), frame.CursorRow)
 	}
 	return view
 }

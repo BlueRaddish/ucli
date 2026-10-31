@@ -31,7 +31,11 @@ func (s *session) syncTerminalChrome() error {
 	if s.demo {
 		context += " | DEMO"
 	}
-	chrome := terminalChrome{Version: Version, Location: s.cwd, Model: selection.Model, Context: context}
+	taskID := ""
+	if s.task != nil {
+		taskID = s.task.ID
+	}
+	chrome := terminalChrome{Version: Version, Location: s.cwd, Model: selection.Model, Context: context, Account: account, Effort: selection.Effort, Permission: selection.Permission, Usage: "not reported", TaskID: taskID, Demo: s.demo}
 	if s.chromeSet && s.chrome == chrome {
 		return nil
 	}
