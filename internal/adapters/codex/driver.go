@@ -120,6 +120,13 @@ func executeProtocol(ctx context.Context, req adapters.Request, child *process.C
 		}
 	})
 	defer func() { close(finished); stopWatch() }()
+	// The supplied owned child has started. This is not provider acceptance;
+	// no protocol request or task input has been sent through this transport.
+	if req.OnClientStarted != nil {
+		if err = req.OnClientStarted(); err != nil {
+			return out, core.Problem("codex_progress", "Native client start could not be recorded; no turn was sent.", 9)
+		}
+	}
 	r := &rpc{child: child}
 	call := func(method string, params any) (json.RawMessage, bool, error) {
 		timeout := requestTimeout

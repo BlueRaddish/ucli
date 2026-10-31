@@ -149,6 +149,13 @@ func execute(ctx context.Context, req adapters.Request, emit func(string) error,
 			err = errors.Join(fail("claude_cleanup", out.Message, 9), err)
 		}
 	}()
+	// This records local launch only. Fresh native checks and terminal evidence
+	// still establish the selected route and outcome; the UI is not on this path.
+	if req.OnClientStarted != nil {
+		if err = req.OnClientStarted(); err != nil {
+			return out, fail("claude_progress", "Native client start could not be recorded; no turn was sent.", 9)
+		}
+	}
 	// Send can partially write. Fence before calling it, not after a successful return.
 	out.State, out.Message = "unknown", "Native Claude turn acceptance or outcome is unknown; do not replay blindly."
 	dispatched = true

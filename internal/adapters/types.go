@@ -19,6 +19,12 @@ type Request struct {
 	// dispatch. Provenance never establishes provider turn acceptance. A failure
 	// must stop dispatch. Nil supports standalone protocol experiments.
 	OnContext func(core.NativeContext) error
+	// OnClientStarted records that the execution child successfully started,
+	// not that a provider accepted the turn or that the child is still alive.
+	// Call once after owned cleanup is installed, before sending task input.
+	// Errors stop dispatch; nil retains standalone fixture compatibility.
+	// The App supplies persistence here, never a UI/render callback.
+	OnClientStarted func() error
 }
 
 // NativeBinding is a local connection descriptor, not an admission Boolean.

@@ -24,6 +24,7 @@ func TestMain(m *testing.M) {
 		os.Exit(catalogFixtureHost())
 	}
 	if len(os.Args) > 1 && os.Args[1] == "--safe-mode" {
+		recordClientProgressFixturePID()
 		os.Exit(fixtureHost())
 	}
 	os.Exit(m.Run())

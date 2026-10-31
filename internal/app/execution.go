@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -70,6 +71,13 @@ func (a *App) runAccepted(ctx context.Context, attempt core.Attempt, executable 
 		return nil
 	}
 	req := adapters.Request{Attempt: attempt, Executable: executable, StateHome: a.Home,
+		OnClientStarted: sync.OnceValue(func() error {
+			if _, err := a.Store.AppendEvent(ctx, core.Event{TaskID: attempt.TaskID, AttemptID: attempt.ID, Type: "status", Text: core.StatusClientStarted}, a.owner.ID); err != nil {
+				return core.Problem("execution_progress_not_saved", "Native client start could not be recorded.", 9)
+			}
+			notify()
+			return nil
+		}),
 		OnContext: func(native core.NativeContext) error {
 			if _, err := a.Store.RecordNativeContext(ctx, attempt.ID, a.owner.ID, native); err != nil {
 				return err
