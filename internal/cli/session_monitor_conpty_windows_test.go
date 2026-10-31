@@ -66,6 +66,15 @@ func TestPackagedConPTYSessionMonitorBurstAndRefresh(t *testing.T) {
 	p.awaitVisible(t, mark, "Sessions")
 	mark = p.send(t, "Burst monitor")
 	p.awaitVisible(t, mark, "Search: Burst monitor")
+	// Catch-up timing requires the saved-output rows to be visible. The richer
+	// footer leaves the initial 80x24 detail page above those rows; that is
+	// ordinary scrolling, not delayed event delivery. Prove the taller redraw
+	// before starting either unchanged latency deadline below.
+	mark = p.resize(t, 80, 32)
+	awaitShellFrame(t, p, p.resizes, "monitor-timing-viewport", func(f shellCapturedFrame) bool {
+		return f.RawBytes > mark && shellFrameBase(f, 80, 32) &&
+			strings.Contains(strings.Join(f.Rows, "\n"), "Search: Burst monitor") && strings.Contains(f.Rows[31], "Draft kept")
+	})
 	catchUp := func(start time.Time, mark int, marker string) {
 		t.Helper()
 		p.await(t, mark, marker)
@@ -89,13 +98,17 @@ func TestPackagedConPTYSessionMonitorBurstAndRefresh(t *testing.T) {
 	catchUp(start, mark, refreshed)
 	awaitShellFrame(t, p, p.resizes, "monitor-refreshed", func(f shellCapturedFrame) bool {
 		text := strings.Join(f.Rows, "\n")
-		return strings.Contains(text, burst) && strings.Contains(text, refreshed) && strings.Contains(text, "Esc")
+		return shellFrameBase(f, 80, 32) && strings.Contains(text, burst) && strings.Contains(text, refreshed) && strings.Contains(text, "Esc")
 	})
 	mark = p.send(t, "\x1b")
 	p.awaitVisible(t, mark, "Search: Burst monitor")
 	mark = p.send(t, "\x1b")
 	p.awaitVisible(t, mark, "? shortcuts")
 	p.awaitVisible(t, mark, draft)
+	mark = p.resize(t, 80, 24)
+	awaitShellFrame(t, p, p.resizes, "monitor-restored-draft", func(f shellCapturedFrame) bool {
+		return f.RawBytes > mark && shellFramePrompt(f, 80, 24, "", draft)
+	})
 	p.send(t, "\x04")
 	if code := p.wait(t); code != 0 {
 		t.Fatalf("monitor EOF exit=%d", code)
