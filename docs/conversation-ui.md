@@ -1,8 +1,9 @@
 # Conversation interface contract
 
 The conversation is the main surface. Keep one full-width reading path, a fixed
-header, and a framed composer at the bottom. Model and location belong below the
-composer. Views for models, saved sessions and workflows replace the body while
+header, and a framed composer at the bottom. Model, effort, account, permissions,
+location and reported usage belong below the composer. Views for models, saved
+sessions and workflows replace the body while
 retaining the draft and its editing position. These requirements describe the
 approved direction; the verification guide and current module READMEs identify
 which paths have executed evidence.
@@ -46,9 +47,11 @@ action menu with an ordinary draft must navigate without submitting that draft.
 Escape returns one level. Selection preview is separate from a committed model,
 account, effort or permission pin. Cancel preserves every independent pin.
 
-Terminal mouse reporting stays off by default so native terminal selection still
-works. A browser mockup's clickable controls do not establish terminal mouse or
-copy behavior. Keep every core action available by keyboard. `NO_COLOR` retains
+The rich terminal supports clicks on visible controls and menu choices. Shift-drag
+retains the terminal's copy gesture where supported; F2 disables mouse reporting
+for native selection. F2 can enable it again. A browser mockup's clickable controls
+do not establish terminal mouse or copy behavior. Keep every core action available
+by keyboard. `NO_COLOR` retains
 the same geometry and role labels; reduced motion changes no logical state.
 
 ## Model and permission selection - October 28
@@ -75,6 +78,39 @@ opens that picker and returns to the saved composition; a later Enter sends.
 Never silently promote a permission or
 weaken adapter checks to clear a routing error.
 
+## Readable work and navigation - October 30
+
+The chat loop is Enter -> visible preparation -> accepted work -> observed client
+start -> response fragments -> durably saved outcome. These labels describe real
+boundaries, not a timed animation or an estimate of remote completion. Client
+start means a local owned process started; it does not establish provider
+acceptance, ongoing liveness or private reasoning access. There is no separate
+Saving phase unless persistence actually exposes one.
+
+Keep the current job in a stable progress row. Clicking it or a scoped response
+heading opens a read-only job inspector; F3 is the keyboard route. The inspector
+shows the captured route, recent UCLI activity, and received response. It must
+open even while synchronous preparation is running. Escape returns to the same
+draft/view; inspecting cannot send, cancel, sign in, change pins or reveal native
+credential/context payloads. Saved sessions remain a separate history view.
+
+Speaker captions, a two-cell content gutter and compact inter-message gaps
+separate user, assistant and UCLI messages. Wrap prose at word boundaries; keep
+paragraphs, lists, fences and relative code indentation literal. Streaming chunks
+are not paragraphs. Preserve source-byte anchors across wrapping and resize.
+
+The idle footer shows only `← agents · ? shortcuts`. Left and `?` open their menus
+at empty input; left-arrow editing and question marks inside real prompts stay
+literal. F1 opens shortcuts while a draft is present. Slash completion and Tab
+remain available; the shortcuts menu explains Enter, newline, copy, navigation,
+mouse, sessions and stop. Footer metadata uses semantic colors, retains readable
+monochrome text, and says `Usage not reported` when no provider measurement exists.
+Browsing never manufactures an allowance, token count or reset timer.
+
+Login menus distinguish using an existing sign-in from opening provider sign-in,
+show the last observed connection state, and keep technical details secondary.
+Workflow inspection remains an offline plan viewer, not workflow execution.
+
 ## Layout budget
 
 The existing shell uses three header rows at ordinary sizes. The baseline is one
@@ -84,12 +120,13 @@ remain fixed. Rows below are zero-based.
 | Region | 100 columns × 30 rows | 60 columns × 20 rows |
 |---|---:|---:|
 | Header and rule | 0–2 | 0–2 |
-| Body, including conditional navigation | 3–23 | 3–13 |
-| Notice | 24 | 14 |
-| Upper composer rule | 25 | 15 |
-| Input | 26 | 16 |
-| Lower composer rule | 27 | 17 |
-| Model and location | 28 | 18 |
+| Job progress | 3 | 3 |
+| Body, including conditional navigation | 4–21 | 4–11 |
+| Notice | 22 | 12 |
+| Upper composer rule | 23 | 13 |
+| Input | 24 | 14 |
+| Lower composer rule | 25 | 15 |
+| Model/effort/usage, location, permissions/account | 26–28 | 16–18 |
 | Keyboard hints | 29 | 19 |
 
 Shorten secondary metadata at narrow widths. At tiny heights remove decoration

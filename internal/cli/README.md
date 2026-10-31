@@ -57,7 +57,7 @@ go run ./cmd/ucli --home .build/cli-tryout run --demo "Try a task"
 go run ./cmd/ucli --home .build/cli-tryout
 ```
 
-Running `ucli` with no arguments on a real terminal opens the interactive shell, while redirected invocation prints help and exits. In rich mode, the layout stacks a static cat, version, and context header with a matching separator, a bounded scrollable body navigated via `PageUp`/`PageDown`, a notice row, an upper rule, the input editor, a lower rule, a model and working-path footer, and keyboard hints; tiny terminals reduce this layout. Interactive selectors, inspection-only workflow views (with no executor), voice controls, and login prompts share the shell, and standalone panels retain real controls rather than a pretend editable draft.
+Running `ucli` with no arguments on a real terminal opens the interactive shell, while redirected invocation prints help and exits. The rich layout has a cat/version header, Chat/Sessions/Connect navigation, a job row, and a bounded scrollable body above a framed input. A notice sits above the input; model, directory and other metadata sit below it with compact navigation hints. Tiny terminals reduce decoration. Interactive selectors, inspection-only workflow views (with no executor), voice controls, and login prompts share the shell, and standalone panels retain real controls rather than a pretend editable draft.
 
 Submitted prompts render with a full-width highlight, an indented `Your prompt` caption, and a single `>` marker on the first line of text. Wrapped and subsequent lines indent without a vertical gutter. Monochrome output keeps the same layout. Assistant replies retain literal code.
 
@@ -72,8 +72,26 @@ When the latest retained prompt heading scrolls above the viewport body, `Latest
 prompt` (`Ctrl+Up`) reveals it, pauses auto-following, and leaves the composer
 intact. `PageUp` and `PageDown` preserve source-text anchors across incoming
 output and terminal resizes, while `Latest output` (`Ctrl+End`) resumes following.
-Open menus capture keyboard input, and mouse capture stays off so native terminal
-copy works normally.
+Open menus capture keyboard input. Visible controls and choices accept pointer
+input; F2 toggles mouse reporting and `--no-mouse` starts with it disabled for
+native terminal selection. Shift-drag remains available where the terminal
+supports bypassing mouse reporting. Keyboard navigation remains complete.
+
+Replies and system messages use a two-cell reading gutter with separate speaker
+captions and inter-message spacing. Prose wraps at word boundaries; literal
+paragraphs, lists, fences and relative code indentation retain their source text.
+All model, effort, usage, directory, permission and account metadata sit below
+the framed input. The idle hint is `← agents · ? shortcuts`; Left and `?` open
+menus only at empty input, while F1 works with a draft. Usage says `not reported`
+when no provider measurement exists.
+
+A stable job row exposes preparation, acceptance, observed local child start,
+response and saved outcome. Click that row or a matching retained reply heading,
+or press F3, for a read-only inspector. It opens during synchronous preparation,
+keeps received output and bounded activity visible, and consumes typing/paste
+without changing the hidden composer. Escape restores the prior view. Inspector
+activity is display state, not proof of remote liveness or private reasoning;
+saved results and session history remain the durable inspection route.
 
 The in-memory display is bounded to 64 KiB of source text, 400 records, and 600
 wrapped rows. When older content is evicted, the transcript discloses the eviction

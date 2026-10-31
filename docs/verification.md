@@ -4,18 +4,61 @@ Run checks that exercise the behavior being changed. A build proves compilation;
 it does not prove a provider account, permission boundary, remote cancellation or
 human workflow. Keep failed and skipped checks visible in a pull request.
 
+## Session readability and navigation - October 30
+
+The targeted route below checks indented, word-wrapped transcript blocks;
+source-text anchors and code indentation; empty-input shortcuts; exact visible
+click targets; inspector paste isolation; old-observer exclusion; cached login
+choices; and observed native-child start ordering. Run it before the complete
+`tools/dev.py all` and packaged checks:
+
+```console
+go test -p=1 -count=1 ./internal/cli ./internal/app ./internal/adapters/claude ./internal/adapters/codex -run 'TestSessionUI|TestTranscript|TestScoped|TestLogin|TestClientStartedProgress|TestDemoDoesNotInvent|TestConsoleMouse|TestWorkflowClick|TestTerminalNavigation'
+```
+
+`TestPackagedConPTYSessionUI` drives actual SGR click input through the packaged
+Windows entrypoint: agents, cached connection browsing, shortcuts, one local demo
+response and its saved job inspector. It verifies the preserved draft/pins,
+exactly one complete durable attempt, and no hidden typing or submission while
+inspecting. `TestPackagedConPTYWorkflowDemo` additionally requires
+`UCLI_WORKFLOW_UI_DEMO` naming a version-1 workflow JSON. It captures a wide plan
+and narrow clicked step, requires a visible not-executed label, and checks that
+the offline viewer never opened the task database. The normal workflow journey
+still checks inspection inside chat with an existing draft and zero dispatch.
+
+Use the same packaged binary, evidence, QA dependencies and Python variables
+described below, then run:
+
+```console
+go test -p=1 -count=1 ./internal/cli -run '^TestPackagedConPTY(SessionUI|WorkflowDemo|WorkflowPlanView|ModelDrilldown)$'
+```
+
+Run the full packaged family before delivery. Keep the workflow demo opt-in
+configured when claiming its capture. Render retained, asserted frames through
+`tools/render_terminal.py --frame PATH` and inspect dark/light chat and job
+details plus wide/narrow workflow states. A changed palette for ANSI emulation
+does not prove physical terminal theme negotiation. Mouse-record fixtures and
+SGR console journeys do not establish every terminal's native selection gesture.
+
+Progress labels follow local preparation, durable acceptance, an observed owned
+child start, received text and saved outcome. Fake-child and store tests cover
+the native-start hook; the local demo must not invent a native child. This route
+does not certify live provider login, inference, remaining usage, workflow
+execution or remote cancellation. Unknown usage stays `not reported`.
+
 ## Fixed terminal shell — October 19
 
-The shared rich shell has a static brand/version row, a permission/effort/account
-context row and a continuous rule. A bounded transcript sits above the framed
-composer. Its status is immediately above the upper rule; requested model and a
-tail-preserved location sit below the lower rule, followed by key hints. At 80x24,
-status/editor/footer/hints occupy zero-based rows 18/20/22/23. At 60x20 they occupy
-14/16/18/19. Multiline input grows upward without moving the final editor row or
-footer. Menus retain visible composition and replace the editing hint with an
-explicit draft-kept hint. Standalone panels show their own title/location and
-controls, without a fake model or editable prompt. Small heights drop decoration
-before status and input.
+The shared rich shell has a static brand/version row, Chat/Sessions/Connect
+navigation and a continuous rule. A stable job-progress row and a bounded
+transcript sit above the framed composer. The notice remains immediately above
+the upper rule. All model, effort, usage, location, permission and account details
+sit below the lower rule, followed by `← agents · ? shortcuts`. At 80x24,
+progress/notice/editor/metadata/hints occupy zero-based rows 3/16/18/20–22/23.
+At 60x20 they occupy 3/12/14/16–18/19. Multiline input grows upward without moving
+the final editor row or footer. Menus retain visible composition and show a
+draft-kept hint. Standalone panels show their own title/location and controls,
+without a fake model or editable prompt. Small heights drop decoration before
+status and input. The [conversation contract](conversation-ui.md) owns the layout.
 
 `--no-color` and `NO_COLOR` retain rich navigation. `--no-motion` makes the embedded
 catalog static; `--ascii` changes only cat artwork. `--plain` selects the static
@@ -48,16 +91,18 @@ editor while giving submitted prompts a structural band and assistant replies
 their own typed records. Deltas append to one reply; saved history takes roles
 from attempt input/output. Provider prose cannot create UCLI role headings or
 controls. Code fences and indentation remain literal; this slice adds no Markdown
-renderer or inferred tool summaries. Informational execution status uses the
-notice instead of repeating inside the reply. Warnings/errors remain retained.
+renderer or inferred tool summaries. Scoped execution progress uses the stable
+job row instead of repeating inside the reply. Other informational status uses
+the notice. Warnings/errors remain retained.
 
 `Ctrl+Up` reveals the latest retained prompt. `Ctrl+End` returns to the output
 tail; `PageUp` pauses following. Incoming fragments and resize retain a source
 anchor rather than a tail-relative row count. Pruned source or wrapped rows must
 disclose omission and remove unavailable prompt targets. Verify the independent
 64 KiB source, 400-record and 600-wrapped-row bounds, including newline-heavy
-output and a single oversized record. Native terminal mouse reporting remains
-off. Visible transcript history does not imply native provider memory; the
+output and a single oversized record. Mouse reporting supports visible targets;
+F2 or `--no-mouse` restores native terminal selection. Visible transcript history
+does not imply native provider memory; the
 current native-context limitation must remain visible.
 
 Focused checks use the existing Go and hidden-console routes:
