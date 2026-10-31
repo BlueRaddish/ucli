@@ -196,7 +196,7 @@ func composerHint(width int) string {
 
 func composerActions() []choice {
 	return []choice{
-		{"/models", "Agents / Models - choose a CLI, model and effort; Left at empty input"},
+		{"/models", "Agents / Models - choose a CLI and model; Left at empty input"},
 		{"/sessions", "Sessions - watch progress and read saved responses"},
 		{"job:open", "Job details - current activity and response; F3"},
 		{"/login", "Connect account - use an existing sign-in or log in"},
