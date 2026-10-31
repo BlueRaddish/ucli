@@ -500,6 +500,7 @@ type processResult struct {
 	Attempt core.Attempt
 	Created bool
 	Code    string
+	Stage   string
 }
 
 func TestStateProcessHelper(t *testing.T) {
@@ -508,7 +509,7 @@ func TestStateProcessHelper(t *testing.T) {
 	}
 	s, err := Open(os.Getenv("UCLI_STATE_TEST_HOME"))
 	if err != nil {
-		json.NewEncoder(os.Stdout).Encode(processResult{Code: code(err)})
+		json.NewEncoder(os.Stdout).Encode(processResult{Code: code(err), Stage: "open"})
 		os.Exit(0)
 	}
 	var cmd core.RunCommand
@@ -520,7 +521,9 @@ func TestStateProcessHelper(t *testing.T) {
 	if err = os.WriteFile(ready, []byte("ready"), 0600); err != nil {
 		os.Exit(3)
 	}
-	deadline := time.Now().Add(10 * time.Second)
+	// This bounds orphaned fixture children, not storage performance. It exceeds
+	// both sequential parent readiness windows (10s each) plus a cleanup margin.
+	deadline := time.Now().Add(30 * time.Second)
 	for {
 		if _, err = os.Stat(barrier); err == nil {
 			break
@@ -531,52 +534,125 @@ func TestStateProcessHelper(t *testing.T) {
 		time.Sleep(5 * time.Millisecond)
 	}
 	a, newly, err := s.Accept(background, cmd)
-	json.NewEncoder(os.Stdout).Encode(processResult{Attempt: a, Created: newly, Code: code(err)})
+	json.NewEncoder(os.Stdout).Encode(processResult{Attempt: a, Created: newly, Code: code(err), Stage: "accept"})
 	s.Close()
 	os.Exit(0)
+}
+
+type stateProcessChild struct {
+	cmd            *exec.Cmd
+	done           chan struct{}
+	err            error
+	stdout, stderr bytes.Buffer
+}
+
+func startStateProcessChild(t *testing.T, home, ready, barrier string, command core.RunCommand) *stateProcessChild {
+	t.Helper()
+	raw, err := json.Marshal(command)
+	if err != nil {
+		t.Fatal(err)
+	}
+	child := &stateProcessChild{done: make(chan struct{})}
+	child.cmd = exec.Command(os.Args[0], "-test.run=^TestStateProcessHelper$")
+	hideTestChild(child.cmd)
+	child.cmd.Env = append(os.Environ(), "UCLI_STATE_TEST_HELPER=1", "UCLI_STATE_TEST_HOME="+home, "UCLI_STATE_TEST_COMMAND="+string(raw), "UCLI_STATE_TEST_READY="+ready, "UCLI_STATE_TEST_BARRIER="+barrier)
+	child.cmd.Stdout, child.cmd.Stderr = &child.stdout, &child.stderr
+	if err := child.cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	// Wait is called exactly once. Closing done also publishes settled buffers;
+	// readiness failures must not race an exec copier still writing them.
+	go func() { child.err = child.cmd.Wait(); close(child.done) }()
+	t.Cleanup(func() {
+		select {
+		case <-child.done:
+		default:
+			_ = child.cmd.Process.Kill()
+			<-child.done
+		}
+	})
+	return child
+}
+
+func (child *stateProcessChild) waitReady(ctx context.Context, ready string) error {
+	ticker := time.NewTicker(5 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-child.done:
+			return fmt.Errorf("child exited before readiness: %v; stdout=%q stderr=%q", child.err, child.stdout.String(), child.stderr.String())
+		default:
+		}
+		if _, err := os.Stat(ready); err == nil {
+			return nil
+		} else if !os.IsNotExist(err) {
+			return fmt.Errorf("readiness marker: %w", err)
+		}
+		select {
+		case <-child.done:
+			return fmt.Errorf("child exited before readiness: %v; stdout=%q stderr=%q", child.err, child.stdout.String(), child.stderr.String())
+		case <-ctx.Done():
+			return fmt.Errorf("child readiness: %w", ctx.Err())
+		case <-ticker.C:
+		}
+	}
+}
+
+func TestStateProcessReadinessReportsEarlyExit(t *testing.T) {
+	control := t.TempDir()
+	home := filepath.Join(control, "not-a-directory")
+	if err := os.WriteFile(home, []byte("synthetic unavailable home"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	ready := filepath.Join(control, "ready")
+	child := startStateProcessChild(t, home, ready, filepath.Join(control, "start"), command("no-dispatch", "workspace-a", "workspace-write"))
+	ctx, cancel := context.WithTimeout(background, 10*time.Second)
+	defer cancel()
+	err := child.waitReady(ctx, ready)
+	if err == nil || !strings.Contains(err.Error(), "exited before readiness") || errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("early exit was hidden as readiness timeout: %v", err)
+	}
+	var result processResult
+	if err := json.Unmarshal(child.stdout.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	if result.Stage != "open" || result.Code == "" || result.Created || result.Attempt.ID != "" || !strings.Contains(err.Error(), result.Code) {
+		t.Fatalf("missing pre-accept diagnostic: %+v, %v", result, err)
+	}
+	if _, err := os.Stat(ready); !os.IsNotExist(err) {
+		t.Fatalf("failed initialization published readiness: %v", err)
+	}
 }
 
 func TestConcurrentSeparateProcessesReplayAndWriterLease(t *testing.T) {
 	for _, sameCommand := range []bool{true, false} {
 		t.Run(fmt.Sprint("same-command=", sameCommand), func(t *testing.T) {
 			home := t.TempDir()
+			// This test races Accept, not first-time schema/WAL initialization.
+			// Open each independent connection before releasing the shared barrier.
+			seed, err := Open(home)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := seed.Close(); err != nil {
+				t.Fatal(err)
+			}
 			barrier := filepath.Join(home, "start")
 			base := command("process-race", "workspace-a", "workspace-write")
-			children := make([]*exec.Cmd, 2)
-			outputs := make([]bytes.Buffer, 2)
-			errorsOut := make([]bytes.Buffer, 2)
+			children := make([]*stateProcessChild, 2)
 			for i := range 2 {
 				cmd := base
 				if !sameCommand {
 					cmd.ID += fmt.Sprint(i)
 				}
-				raw, _ := json.Marshal(cmd)
-				child := exec.Command(os.Args[0], "-test.run=^TestStateProcessHelper$")
-				hideTestChild(child)
-				child.Env = append(os.Environ(), "UCLI_STATE_TEST_HELPER=1", "UCLI_STATE_TEST_HOME="+home, "UCLI_STATE_TEST_COMMAND="+string(raw), "UCLI_STATE_TEST_READY="+filepath.Join(home, fmt.Sprint("ready", i)), "UCLI_STATE_TEST_BARRIER="+barrier)
-				child.Stdout = &outputs[i]
-				child.Stderr = &errorsOut[i]
-				if err := child.Start(); err != nil {
-					t.Fatal(err)
-				}
+				ready := filepath.Join(home, fmt.Sprint("ready", i))
+				child := startStateProcessChild(t, home, ready, barrier, cmd)
 				children[i] = child
-				t.Cleanup(func() {
-					if child.ProcessState == nil {
-						child.Process.Kill()
-						child.Wait()
-					}
-				})
-			}
-			deadline := time.Now().Add(10 * time.Second)
-			for i := range 2 {
-				for {
-					if _, err := os.Stat(filepath.Join(home, fmt.Sprint("ready", i))); err == nil {
-						break
-					}
-					if time.Now().After(deadline) {
-						t.Fatal("child not ready")
-					}
-					time.Sleep(5 * time.Millisecond)
+				ctx, cancel := context.WithTimeout(background, 10*time.Second)
+				err := child.waitReady(ctx, ready)
+				cancel()
+				if err != nil {
+					t.Fatalf("child %d: %v", i, err)
 				}
 			}
 			if err := os.WriteFile(barrier, []byte("go"), 0600); err != nil {
@@ -584,20 +660,19 @@ func TestConcurrentSeparateProcessesReplayAndWriterLease(t *testing.T) {
 			}
 			results := make([]processResult, 2)
 			for i, child := range children {
-				done := make(chan error, 1)
-				go func() { done <- child.Wait() }()
 				select {
-				case err := <-done:
-					if err != nil {
-						t.Fatalf("child: %v %s", err, errorsOut[i].String())
+				case <-child.done:
+					if child.err != nil {
+						t.Fatalf("child %d: %v stdout=%q stderr=%q", i, child.err, child.stdout.String(), child.stderr.String())
 					}
 				case <-time.After(10 * time.Second):
-					child.Process.Kill()
-					<-done
-					t.Fatal("child timeout")
+					t.Fatalf("child %d acceptance timeout", i)
 				}
-				if err := json.Unmarshal(outputs[i].Bytes(), &results[i]); err != nil {
-					t.Fatalf("decode %v %q", err, outputs[i].String())
+				if err := json.Unmarshal(child.stdout.Bytes(), &results[i]); err != nil {
+					t.Fatalf("decode %v %q", err, child.stdout.String())
+				}
+				if results[i].Stage != "accept" {
+					t.Fatalf("child %d did not reach acceptance: %+v", i, results[i])
 				}
 			}
 			created := 0
